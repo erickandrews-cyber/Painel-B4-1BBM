@@ -14,19 +14,13 @@
 <body>
 <div id="root"><div id="boot-msg">Carregando painel…</div></div>
 
-<!-- React -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-<!-- Babel (transpila o JSX direto no navegador, sem precisar de build) -->
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-<!-- Firebase (compat, mais simples para uso sem bundler) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
 <script>
-  // Configuração do projeto Firebase (painel-b4-1bbm)
   const firebaseConfig = {
     apiKey: "AIzaSyAOmScAAghRFZwWqwpNFNhXmuIsHHxjZdY",
     authDomain: "painel-b4-1bbm.firebaseapp.com",
@@ -38,8 +32,6 @@
   firebase.initializeApp(firebaseConfig);
   const __db = firebase.firestore();
 
-  // Camada de compatibilidade: imita a mesma API de armazenamento que o painel já usava,
-  // agora usando o Firestore como banco de dados por trás.
   window.storage = {
     get: async function (key) {
       const doc = await __db.collection("b4storage").doc(key).get();
@@ -694,7 +686,7 @@ function App() {
   /* ---- alertas agregados ---- */
   const alerts = [
     ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao })),
-    ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, sev: SEV.atencao, foto: p.foto, problemaId: p.id })),
+    ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id })),
   ];
 
   const subtitleMap = {
@@ -738,7 +730,7 @@ function App() {
                     <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
                       <div className="alert-main">
                         {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
-                        <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div></div>
+                        <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {a.problemaId && !visaoExterna && (
@@ -863,7 +855,7 @@ function App() {
                     <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
                       <div className="alert-main">
                         {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
-                        <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div></div>
+                        <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {a.problemaId && !visaoExterna && (
@@ -978,6 +970,7 @@ const CSS = `
 .lightbox-close:hover{background:rgba(255,255,255,.3);}
 .alert-title{font-weight:700;font-size:13px;}
 .alert-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.alert-desc{font-size:12.5px;color:var(--ink);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);line-height:1.5;}
 .grid-vehicles{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
 .vcard{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
 .pill.vcard-badge{position:absolute;top:8px;right:8px;}
