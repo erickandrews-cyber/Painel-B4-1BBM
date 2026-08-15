@@ -81,6 +81,7 @@ const User = (p) => <Icon {...p} path={<><path d="M20 21a8 8 0 1 0-16 0" /><circ
 const Phone = (p) => <Icon {...p} path={<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />} />;
 const Wrench = (p) => <Icon {...p} path={<path d="M14.7 6.3a5 5 0 0 0-6.9 6.9L2 19l3 3 5.8-5.8a5 5 0 0 0 6.9-6.9L14 13l-3-3z" />} />;
 const ShieldAlert = (p) => <Icon {...p} path={<><path d="M12 2 3 7v6c0 5 4 9 9 11 5-2 9-6 9-11V7l-9-5z" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} />;
+const Key = (p) => <Icon {...p} path={<><circle cx="7.5" cy="15.5" r="5.5" /><path d="M21 2l-9.6 9.6" /><path d="M15.5 7.5 19 4" /><path d="M17.5 9.5 21 6" /></>} />;
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
 const VSTATUS = {
@@ -138,6 +139,9 @@ const SEED_EMBARCACOES = [
   { id: "e4", nome: "BIS-21", foto: "data:image/jpeg;base64,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", tipo: "Bote Inflável Flexbolt SR-15 STD", qth: "Oficina", placa: "—", capacidade: 0, engate: "Sim", status: "manutencao", motivo: "Baixada — motivo não informado na planilha", ultimaManutencao: "—", km: "—" },
 ];
 
+const SEED_CHAVES_LOG = [];
+const SEED_CHAVES_VEICULOS = [];
+
 const SEED_ESCALAS = [
   { id: "esc1", data: "01/08/2026", militar: "2º Sgt. Ernande", obs: "" },
   { id: "esc2", data: "02/08/2026", militar: "3º Sgt. Almeida", obs: "" },
@@ -181,6 +185,18 @@ function parseBRDate(s) {
 }
 function formatCurrency(v) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function sameDate(a, b) { return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear(); }
+function agoraFormatado() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function parseBRDateHora(s) {
+  if (!s) return null;
+  const [datePart, timePart] = s.split(" ");
+  const [d, m, y] = datePart.split("/").map(Number);
+  const [h, min] = (timePart || "00:00").split(":").map(Number);
+  if (!d || !m || !y) return null;
+  return new Date(y, m - 1, d, h || 0, min || 0);
+}
 function militarCodigo(nome) {
   const m = MILITARES.find((x) => x.nome === nome);
   if (m) return m.codigo;
@@ -297,6 +313,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose }
           {item("geral", "Visão Geral", LayoutGrid)}
           {item("viaturas", "Viaturas", Truck)}
           {item("embarcacoes", "Embarcações", Anchor)}
+          {item("chaves", "Chaves", Key)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("alertas", "Alertas", AlertTriangle)}
         </nav>
@@ -505,6 +522,111 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
 }
 
 /* ---------------- Escalas ---------------- */
+/* ---------------- Chaves ---------------- */
+function AddChaveVeiculoModal({ opcoes, onClose, onSave }) {
+  const [veiculoId, setVeiculoId] = useState("");
+  const selecionado = opcoes.find((v) => v.id === veiculoId);
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Adicionar ao controle de chaves</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Selecione a viatura/embarcação já cadastrada
+            <select value={veiculoId} onChange={(e) => setVeiculoId(e.target.value)}>
+              <option value="">Selecione...</option>
+              {opcoes.map((v) => <option key={v.id} value={v.id}>{v.nome} — {v.tipo}</option>)}
+            </select>
+          </label>
+          {opcoes.length === 0 && <div className="muted-sm">Todas as viaturas e embarcações já estão no controle de chaves.</div>}
+          {selecionado && (
+            <div className="chave-preview">
+              <div className="chave-preview-media" style={selecionado.foto ? { background: `${selecionado.fotoPosX ?? 50}% ${selecionado.fotoPosY ?? 50}% / cover no-repeat url(${selecionado.foto})` } : {}}>
+                {!selecionado.foto && <VIcon tipo={selecionado.tipo} size={30} />}
+              </div>
+              <div className="chave-preview-info">
+                <div className="tbold">{selecionado.nome}</div>
+                <div className="muted-sm">{selecionado.tipo}</div>
+                <div className="muted-sm" style={{ marginTop: 4 }}>Km atual: {selecionado.km && selecionado.km !== "—" ? selecionado.km : "não informado"}</div>
+                <div className="muted-sm">QTH: {selecionado.qth}</div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!veiculoId} onClick={() => onSave(veiculoId)}>Adicionar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChaveModal({ veiculo, onClose, onSave }) {
+  const [militar, setMilitar] = useState("");
+  const [outro, setOutro] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [obs, setObs] = useState("");
+  const kmAtualNum = veiculo.km && veiculo.km !== "—" ? String(veiculo.km).replace(/\./g, "") : "";
+  const [kmSaida, setKmSaida] = useState(kmAtualNum);
+  const handleSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutro(true); setMilitar(customName); }
+    else { setOutro(false); setMilitar(e.target.value); }
+  };
+  const handleCustomName = (e) => { setCustomName(e.target.value); setMilitar(e.target.value); };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Retirar chave — {veiculo.nome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Militar responsável
+            <select value={outro ? "__outro__" : militar} onChange={handleSelect}>
+              <option value="">Selecione...</option>
+              {MILITARES.map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+              <option value="__outro__">Outro (digitar nome)</option>
+            </select>
+          </label>
+          {outro && (
+            <label>Nome do militar<input value={customName} onChange={handleCustomName} placeholder="Graduação e nome" /></label>
+          )}
+          <label>Km de saída<input type="number" value={kmSaida} onChange={(e) => setKmSaida(e.target.value)} placeholder="Ex: 48230" /></label>
+          <label>Observação (opcional)<input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex: saída para resolver pendência administrativa..." /></label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!militar || kmSaida === ""} onClick={() => onSave({ militar, obs, kmSaida: Number(kmSaida) })}>Retirar chave</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DevolverChaveModal({ entry, onClose, onSave }) {
+  const [kmDevolucao, setKmDevolucao] = useState("");
+  const kmNum = Number(kmDevolucao);
+  const rodado = kmDevolucao !== "" && !isNaN(kmNum) ? kmNum - entry.kmSaida : null;
+  const invalido = kmDevolucao !== "" && rodado !== null && rodado < 0;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Devolver chave — {entry.veiculoNome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Km de saída<input value={entry.kmSaida ?? "—"} disabled /></label>
+          <label>Km de devolução<input type="number" value={kmDevolucao} onChange={(e) => setKmDevolucao(e.target.value)} placeholder="Ex: 48257" /></label>
+          {rodado !== null && (
+            <div className={invalido ? "km-rodado km-rodado-erro" : "km-rodado"}>
+              {invalido ? "Km de devolução não pode ser menor que o de saída" : `Rodado: ${rodado} km`}
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={kmDevolucao === "" || invalido} onClick={() => onSave(kmNum)}>Confirmar devolução</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EscalaModal({ initial, defaultDate, onClose, onSave }) {
   const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
   const initialMilitar = initial?.militar || "";
@@ -589,9 +711,28 @@ function App() {
   const [embarcacoes, saveEmbarcacoes, readyE] = useShared("b4-embarcacoes-real", SEED_EMBARCACOES, (list) => fillMissingPhotos(normalizeVehicleList(list), SEED_EMBARCACOES));
   const [problemas, saveProblemas, readyP] = useShared("b4-problemas", []);
   const [escalas, saveEscalas, readyEsc] = useShared("b4-escalas-ago2026", SEED_ESCALAS);
+  const [chavesLog, saveChavesLog, readyChaves] = useShared("b4-chaves", SEED_CHAVES_LOG);
+  const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
 
-  const [tab, setTab] = useState("geral");
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "escalas", "alertas"];
+  const initialTab = (() => {
+    const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
+    return VALID_TABS.includes(h) ? h : "geral";
+  })();
+  const [tab, setTabRaw] = useState(initialTab);
+  const setTab = (t) => {
+    setTabRaw(t);
+    if (typeof window !== "undefined") window.location.hash = t;
+  };
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = window.location.hash.replace("#", "");
+      if (VALID_TABS.includes(h)) setTabRaw(h);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [visaoExterna, setVisaoExterna] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [calMonthOffset, setCalMonthOffset] = useState(0);
@@ -606,8 +747,11 @@ function App() {
   const [pendingConfirm, setPendingConfirm] = useState(null);
   const askConfirm = (message, onYes) => setPendingConfirm({ message, onYes });
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [chaveModalVeiculo, setChaveModalVeiculo] = useState(null);
+  const [devolvendoChave, setDevolvendoChave] = useState(null);
+  const [chaveVeiculoModalOpen, setChaveVeiculoModalOpen] = useState(false);
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -665,6 +809,41 @@ function App() {
     setEditingEscalaOpen(false); setEditingEscala(null);
   };
   const deleteEscala = (e) => { askConfirm(`Remover escala de ${e.data}?`, () => saveEscalas(escalas.filter((x) => x.id !== e.id))); };
+
+  /* ---- chaves ---- */
+  const findVeiculoById = (id) => viaturas.find((v) => v.id === id) || embarcacoes.find((v) => v.id === id);
+  const veiculoCategoria = (id) => (viaturas.some((v) => v.id === id) ? "viaturas" : "embarcacoes");
+  const chaveAbertaFor = (veiculoId) => chavesLog.find((c) => c.veiculoId === veiculoId && !c.devolvidaEm);
+  const retirarChave = (veiculo, militar, obs, kmSaida) => {
+    const entry = { id: uid(), veiculoId: veiculo.id, veiculoNome: veiculo.nome, militar, obs, kmSaida, kmDevolucao: null, retiradaEm: agoraFormatado(), devolvidaEm: null };
+    saveChavesLog([entry, ...chavesLog]);
+    setChaveModalVeiculo(null);
+  };
+  const devolverChave = (entry, kmDevolucao) => {
+    saveChavesLog(chavesLog.map((c) => (c.id === entry.id ? { ...c, devolvidaEm: agoraFormatado(), kmDevolucao } : c)));
+    // Sincroniza o Km devolvido de volta com o cadastro da viatura/embarcação
+    const categoria = veiculoCategoria(entry.veiculoId);
+    const kmFormatado = kmDevolucao.toLocaleString("pt-BR");
+    if (categoria === "viaturas") saveViaturas(viaturas.map((v) => (v.id === entry.veiculoId ? { ...v, km: kmFormatado } : v)));
+    else saveEmbarcacoes(embarcacoes.map((v) => (v.id === entry.veiculoId ? { ...v, km: kmFormatado } : v)));
+    setDevolvendoChave(null);
+  };
+  const chavesEmAbertoLongo = chavesLog.filter((c) => {
+    if (c.devolvidaEm) return false;
+    const dt = parseBRDateHora(c.retiradaEm);
+    if (!dt) return false;
+    return (Date.now() - dt.getTime()) / 3600000 >= 12;
+  });
+  const addChaveVeiculo = (veiculoId) => {
+    if (!chavesVeiculos.includes(veiculoId)) saveChavesVeiculos([...chavesVeiculos, veiculoId]);
+    setChaveVeiculoModalOpen(false);
+  };
+  const deleteChaveVeiculo = (veiculoId, nome) => {
+    const aberta = chaveAbertaFor(veiculoId);
+    if (aberta) { alert("Essa viatura tem uma chave em aberto. Registre a devolução antes de remover."); return; }
+    askConfirm(`Remover "${nome}" do controle de chaves?`, () => saveChavesVeiculos(chavesVeiculos.filter((id) => id !== veiculoId)));
+  };
+  const opcoesParaAdicionar = [...viaturas, ...embarcacoes].filter((v) => !chavesVeiculos.includes(v.id));
   const today = new Date();
   const calDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
   const calYear = calDate.getFullYear(), calMonth = calDate.getMonth();
@@ -687,12 +866,14 @@ function App() {
   const alerts = [
     ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao })),
     ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id })),
+    ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 12h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao })),
   ];
 
   const subtitleMap = {
     geral: "Controle de Viaturas e Embarcações",
     viaturas: "Controle de Viaturas e Embarcações",
     embarcacoes: "Controle de Viaturas e Embarcações",
+    chaves: "Controle de Viaturas e Embarcações",
     escalas: "Controle de Viaturas e Embarcações",
     alertas: "Controle de Viaturas e Embarcações",
   };
@@ -762,6 +943,93 @@ function App() {
                 <div className="grid-vehicles">
                   {(tab === "viaturas" ? viaturas : embarcacoes).map((v) => (
                     <VehicleCard key={v.id} v={v} problemCount={problemCountFor(v.id)} onEdit={(v) => openEdit(tab, v)} onDelete={(v) => deleteVehicle(tab, v)} onReport={(v) => setReporting(v)} onPhoto={(v, file) => handleVehiclePhoto(tab, v, file)} onRemovePhoto={(v) => handleRemoveVehiclePhoto(tab, v)} onResolveProblems={resolveProblemsForVehicle} externa={visaoExterna} />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {tab === "chaves" && (
+              <>
+                <div className="section-head">
+                  <h2>Controle de Chaves</h2>
+                  {!visaoExterna && <button className="btn-primary sm internal-only" onClick={() => setChaveVeiculoModalOpen(true)}><Plus size={14} /> Adicionar viatura</button>}
+                </div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Somente viaturas administrativas — as operacionais ficam sob responsabilidade direta do condutor</div>
+
+                <div className="ov-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", marginBottom: 16 }}>
+                  <div className="stat-card"><div className="stat-num" style={{ color: "#2F7D4F" }}>{chavesVeiculos.length - chavesLog.filter((c) => !c.devolvidaEm).length}</div><div className="stat-label">chaves no claviculário</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{ color: chavesLog.filter((c) => !c.devolvidaEm).length ? "#C15A1B" : "#2F7D4F" }}>{chavesLog.filter((c) => !c.devolvidaEm).length}</div><div className="stat-label">chaves retiradas</div></div>
+                </div>
+
+                {chavesVeiculos.length === 0 && (
+                  <div className="panel"><div className="empty">Nenhuma viatura cadastrada no controle de chaves ainda. Clique em "Adicionar viatura" para começar.</div></div>
+                )}
+
+                <div className="grid-vehicles">
+                  {chavesVeiculos.map((veiculoId) => {
+                    const v = findVeiculoById(veiculoId);
+                    if (!v) {
+                      return (
+                        <div className="vcard" key={veiculoId}>
+                          <div className="vcard-body">
+                            <div className="vcard-name">Viatura removida</div>
+                            <div className="muted-sm">Esse veículo não existe mais em Viaturas/Embarcações.</div>
+                            {!visaoExterna && <button className="btn-secondary sm" style={{ marginTop: 8 }} onClick={() => deleteChaveVeiculo(veiculoId, "veículo removido")}>Remover daqui</button>}
+                          </div>
+                        </div>
+                      );
+                    }
+                    const aberta = chaveAbertaFor(v.id);
+                    return (
+                      <div className="vcard" key={veiculoId}>
+                        <div className="vcard-media" style={v.foto ? { background: `${v.fotoPosX ?? 50}% ${v.fotoPosY ?? 50}% / cover no-repeat url(${v.foto})` } : {}}>
+                          {!v.foto && <VIcon tipo={v.tipo} />}
+                          {!v.foto && <span className="vcard-nofoto"><ImageOff size={11} /> sem foto cadastrada</span>}
+                          <span className={aberta ? "pill vcard-badge chave-badge-fora" : "pill vcard-badge chave-badge-casa"}>
+                            {aberta ? aberta.militar : v.qth}
+                          </span>
+                        </div>
+                        <div className="vcard-body">
+                          <div className="vcard-name">{v.nome}</div>
+                          <div className="vcard-type">{v.tipo}</div>
+                          {aberta ? (
+                            <div className="alert-sub" style={{ margin: "6px 0" }}>Desde {aberta.retiradaEm} · Km saída: {aberta.kmSaida}{aberta.obs ? ` · ${aberta.obs}` : ""}</div>
+                          ) : (
+                            <div className="alert-sub" style={{ margin: "6px 0" }}>No claviculário</div>
+                          )}
+                          {!visaoExterna && (
+                            <div className="vcard-actions internal-only">
+                              {aberta ? (
+                                <button className="btn-ghost" onClick={() => setDevolvendoChave(aberta)}><Key size={13} /> Devolver</button>
+                              ) : (
+                                <button className="btn-ghost" onClick={() => setChaveModalVeiculo({ veiculo: v })}><Key size={13} /> Retirar</button>
+                              )}
+                              <div className="vcard-icons">
+                                <button className="icon-btn icon-danger" title="Remover do controle de chaves" onClick={() => deleteChaveVeiculo(v.id, v.nome)}><Trash2 size={14} /></button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="panel" style={{ marginTop: 16 }}>
+                  <h3 style={{ marginTop: 0 }}>Últimas movimentações</h3>
+                  {chavesLog.length === 0 && <div className="empty">Nenhuma movimentação registrada ainda.</div>}
+                  {chavesLog.slice(0, 15).map((c) => (
+                    <div className="alert-row" key={c.id} style={{ borderLeftColor: "transparent" }}>
+                      <div>
+                        <div className="alert-title">{c.veiculoNome} — {c.militar}</div>
+                        <div className="alert-sub">
+                          Retirada: {c.retiradaEm} (Km {c.kmSaida})
+                          {c.devolvidaEm ? ` · Devolução: ${c.devolvidaEm} (Km ${c.kmDevolucao}) · Rodado: ${c.kmDevolucao - c.kmSaida} km` : " · ainda em aberto"}
+                          {c.obs ? ` · ${c.obs}` : ""}
+                        </div>
+                      </div>
+                      <Pill sev={c.devolvidaEm ? SEV.ok : { label: "Em aberto", fg: "#C15A1B", bg: "#FCE8DA" }} />
+                    </div>
                   ))}
                 </div>
               </>
@@ -888,6 +1156,27 @@ function App() {
         />
       )}
       {viewingPhoto && <PhotoLightbox src={viewingPhoto} onClose={() => setViewingPhoto(null)} />}
+      {chaveModalVeiculo && (
+        <ChaveModal
+          veiculo={chaveModalVeiculo.veiculo}
+          onClose={() => setChaveModalVeiculo(null)}
+          onSave={({ militar, obs, kmSaida }) => retirarChave(chaveModalVeiculo.veiculo, militar, obs, kmSaida)}
+        />
+      )}
+      {devolvendoChave && (
+        <DevolverChaveModal
+          entry={devolvendoChave}
+          onClose={() => setDevolvendoChave(null)}
+          onSave={(kmDevolucao) => devolverChave(devolvendoChave, kmDevolucao)}
+        />
+      )}
+      {chaveVeiculoModalOpen && (
+        <AddChaveVeiculoModal
+          opcoes={opcoesParaAdicionar}
+          onClose={() => setChaveVeiculoModalOpen(false)}
+          onSave={addChaveVeiculo}
+        />
+      )}
     </div>
   );
 }
@@ -1050,6 +1339,13 @@ const CSS = `
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
 .btn-primary.sm{padding:7px 12px;font-size:12px;}
 .btn-secondary{background:none;border:1px solid var(--border);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);}
+.km-rodado{background:#E4F2E8;color:#2F7D4F;font-size:13px;font-weight:700;padding:9px 12px;border-radius:8px;text-align:center;}
+.km-rodado-erro{background:#FBE3E3;color:#B23B3B;}
+.chave-preview{display:flex;gap:10px;border:1px solid var(--border);border-radius:10px;padding:10px;align-items:center;}
+.chave-preview-media{width:70px;height:60px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#B9B2A4;background:repeating-linear-gradient(135deg,#EFEAE0,#EFEAE0 6px,#E7E1D5 6px,#E7E1D5 12px);}
+.chave-preview-info{flex:1;min-width:0;}
+.chave-badge-fora{background:#FCE8DA;color:#C15A1B;}
+.chave-badge-casa{background:#E4F2E8;color:#2F7D4F;}
 
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
