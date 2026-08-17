@@ -327,7 +327,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose }
 }
 
 /* ---------------- Header ---------------- */
-function Header({ subtitle, visaoExterna, setVisaoExterna, org, onEditOrg, onMenuClick }) {
+function Header({ subtitle, org, onEditOrg, onMenuClick }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -338,17 +338,13 @@ function Header({ subtitle, visaoExterna, setVisaoExterna, org, onEditOrg, onMen
         </div>
       </div>
       <div className="header-right">
-        <div className="toggle">
-          <button className={!visaoExterna ? "toggle-btn active" : "toggle-btn"} onClick={() => setVisaoExterna(false)}>Visão Interna</button>
-          <button className={visaoExterna ? "toggle-btn active" : "toggle-btn"} onClick={() => setVisaoExterna(true)}>Visão Externa</button>
-        </div>
         <div className="user">
           <div className="user-avatar">{initialsOf(org.chefeNome)}</div>
           <div>
             <div className="user-name">{org.chefeNome}</div>
             <div className="user-role">{org.chefeCargo}</div>
           </div>
-          {!visaoExterna && <button className="icon-btn internal-only" onClick={onEditOrg} title="Editar responsável"><Pencil size={13} /></button>}
+          <button className="icon-btn" onClick={onEditOrg} title="Editar responsável"><Pencil size={13} /></button>
         </div>
       </div>
     </header>
@@ -430,8 +426,18 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
 }
 
 function VehicleModal({ initial, onClose, onSave }) {
+  const isKnownQth = (v) => QTH_OPCOES.includes(v);
+  const initialQth = initial?.qth || "";
+  const initialOutroQth = !!initialQth && !isKnownQth(initialQth);
   const [form, setForm] = useState(initial || { nome: "", tipo: "", qth: QTH_OPCOES[0], placa: "", capacidade: 0, engate: "Não", status: "disponivel", motivo: "", ultimaManutencao: "", km: "", foto: null, fotoPosX: 50, fotoPosY: 50 });
+  const [outroQth, setOutroQth] = useState(initialOutroQth);
+  const [customQth, setCustomQth] = useState(initialOutroQth ? initialQth : "");
   const set = (k) => (e) => setForm({ ...form, [k]: k === "capacidade" ? Number(e.target.value) : e.target.value });
+  const handleQthSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutroQth(true); setForm({ ...form, qth: customQth }); }
+    else { setOutroQth(false); setForm({ ...form, qth: e.target.value }); }
+  };
+  const handleCustomQth = (e) => { setCustomQth(e.target.value); setForm({ ...form, qth: e.target.value }); };
   const setPhoto = async (file) => {
     try { setForm({ ...form, foto: await fileToCompressedDataUrl(file, 480, 0.75), fotoPosX: 50, fotoPosY: 50 }); }
     catch (e) { alert("Não foi possível processar essa imagem."); }
@@ -468,7 +474,15 @@ function VehicleModal({ initial, onClose, onSave }) {
           )}
           <label>Nome / Prefixo curto<input value={form.nome} onChange={set("nome")} placeholder="Ex: ABT-01" /></label>
           <label>Tipo<input value={form.tipo} onChange={set("tipo")} placeholder="Ex: Auto Bomba Tanque" /></label>
-          <label>QTH (local/destino)<select value={form.qth} onChange={set("qth")}>{QTH_OPCOES.map((q) => <option key={q} value={q}>{q}</option>)}</select></label>
+          <label>QTH (local/destino)
+            <select value={outroQth ? "__outro__" : form.qth} onChange={handleQthSelect}>
+              {QTH_OPCOES.map((q) => <option key={q} value={q}>{q}</option>)}
+              <option value="__outro__">Outro (digitar)</option>
+            </select>
+          </label>
+          {outroQth && (
+            <label>Digite o QTH<input value={customQth} onChange={handleCustomQth} placeholder="Ex: Hospital Municipal" /></label>
+          )}
           <label>Placa<input value={form.placa} onChange={set("placa")} placeholder="Ex: PZA-1201 ou —" /></label>
           <label>Capacidade (L)<input type="number" value={form.capacidade} onChange={set("capacidade")} placeholder="Ex: 4000 ou 0" /></label>
           <label>Possui engate<select value={form.engate} onChange={set("engate")}><option>Não</option><option>Sim</option></select></label>
@@ -477,7 +491,7 @@ function VehicleModal({ initial, onClose, onSave }) {
           <label>Última manutenção<input value={form.ultimaManutencao} onChange={set("ultimaManutencao")} placeholder="dd/mm/aaaa" /></label>
           <label>Quilometragem<input value={form.km} onChange={set("km")} placeholder="Ex: 48.230 ou —" /></label>
         </div>
-        <div className="modal-foot"><button className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={() => onSave({ ...form, id: form.id || uid() })} disabled={!form.nome}>Salvar</button></div>
+        <div className="modal-foot"><button className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={() => onSave({ ...form, id: form.id || uid() })} disabled={!form.nome || !form.qth}>Salvar</button></div>
       </div>
     </div>
   );
@@ -733,7 +747,7 @@ function App() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
-  const [visaoExterna, setVisaoExterna] = useState(false);
+  const visaoExterna = false;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [calMonthOffset, setCalMonthOffset] = useState(0);
 
@@ -749,6 +763,10 @@ function App() {
   const [viewingPhoto, setViewingPhoto] = useState(null);
   const [chaveModalVeiculo, setChaveModalVeiculo] = useState(null);
   const [devolvendoChave, setDevolvendoChave] = useState(null);
+  const [chavesBusca, setChavesBusca] = useState("");
+  const [chavesBuscaData, setChavesBuscaData] = useState("");
+  const [chavesVisiveis, setChavesVisiveis] = useState(25);
+  const [alertasFiltroVeiculo, setAlertasFiltroVeiculo] = useState("");
   const [chaveVeiculoModalOpen, setChaveVeiculoModalOpen] = useState(false);
 
   const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV;
@@ -844,6 +862,11 @@ function App() {
     askConfirm(`Remover "${nome}" do controle de chaves?`, () => saveChavesVeiculos(chavesVeiculos.filter((id) => id !== veiculoId)));
   };
   const opcoesParaAdicionar = [...viaturas, ...embarcacoes].filter((v) => !chavesVeiculos.includes(v.id));
+  const chavesLogFiltrado = chavesLog.filter((c) => {
+    const buscaOk = !chavesBusca || c.veiculoNome.toLowerCase().includes(chavesBusca.toLowerCase()) || c.militar.toLowerCase().includes(chavesBusca.toLowerCase());
+    const dataOk = !chavesBuscaData || c.retiradaEm.includes(chavesBuscaData) || (c.devolvidaEm && c.devolvidaEm.includes(chavesBuscaData));
+    return buscaOk && dataOk;
+  });
   const today = new Date();
   const calDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
   const calYear = calDate.getFullYear(), calMonth = calDate.getMonth();
@@ -864,9 +887,9 @@ function App() {
 
   /* ---- alertas agregados ---- */
   const alerts = [
-    ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao })),
-    ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id })),
-    ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 12h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao })),
+    ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao, veiculoNome: v.nome })),
+    ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome })),
+    ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 12h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
   ];
 
   const subtitleMap = {
@@ -885,7 +908,7 @@ function App() {
       <div className="app-body">
         <Sidebar tab={tab} setTab={setTab} org={org} onLogoChange={handleLogoChange} visaoExterna={visaoExterna} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="main-col">
-          <Header subtitle={subtitleMap[tab]} visaoExterna={visaoExterna} setVisaoExterna={setVisaoExterna} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} />
+          <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} />
           <main className="content">
 
             {tab === "geral" && (
@@ -1017,8 +1040,22 @@ function App() {
 
                 <div className="panel" style={{ marginTop: 16 }}>
                   <h3 style={{ marginTop: 0 }}>Últimas movimentações</h3>
-                  {chavesLog.length === 0 && <div className="empty">Nenhuma movimentação registrada ainda.</div>}
-                  {chavesLog.slice(0, 15).map((c) => (
+                  <div className="chaves-filtros">
+                    <input
+                      className="chaves-filtro-input"
+                      value={chavesBusca}
+                      onChange={(e) => { setChavesBusca(e.target.value); setChavesVisiveis(25); }}
+                      placeholder="Buscar por viatura ou militar..."
+                    />
+                    <input
+                      className="chaves-filtro-input"
+                      value={chavesBuscaData}
+                      onChange={(e) => { setChavesBuscaData(e.target.value); setChavesVisiveis(25); }}
+                      placeholder="Buscar por data (dd/mm/aaaa)"
+                    />
+                  </div>
+                  {chavesLogFiltrado.length === 0 && <div className="empty">Nenhuma movimentação encontrada{chavesLog.length > 0 ? " para esse filtro." : " ainda."}</div>}
+                  {chavesLogFiltrado.slice(0, chavesVisiveis).map((c) => (
                     <div className="alert-row" key={c.id} style={{ borderLeftColor: "transparent" }}>
                       <div>
                         <div className="alert-title">{c.veiculoNome} — {c.militar}</div>
@@ -1031,6 +1068,11 @@ function App() {
                       <Pill sev={c.devolvidaEm ? SEV.ok : { label: "Em aberto", fg: "#C15A1B", bg: "#FCE8DA" }} />
                     </div>
                   ))}
+                  {chavesLogFiltrado.length > chavesVisiveis && (
+                    <div style={{ textAlign: "center", marginTop: 12 }}>
+                      <button className="btn-secondary sm" onClick={() => setChavesVisiveis((n) => n + 25)}>Ver mais</button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -1117,9 +1159,19 @@ function App() {
               <>
                 <h2 className="page-title">Alertas e Pendências</h2>
                 <div className="muted-sm" style={{ marginBottom: 14 }}>Itens que exigem atenção da equipe da B/4</div>
+                <div className="chaves-filtros">
+                  <select className="chaves-filtro-input" value={alertasFiltroVeiculo} onChange={(e) => setAlertasFiltroVeiculo(e.target.value)}>
+                    <option value="">Todas as viaturas e embarcações</option>
+                    {[...viaturas, ...embarcacoes].map((v) => <option key={v.id} value={v.nome}>{v.nome}</option>)}
+                  </select>
+                </div>
                 <div className="panel">
-                  {alerts.length === 0 && <div className="empty">Nenhuma pendência no momento.</div>}
-                  {alerts.map((a) => (
+                  {(() => {
+                    const alertsFiltrados = alertasFiltroVeiculo ? alerts.filter((a) => a.veiculoNome === alertasFiltroVeiculo) : alerts;
+                    if (alertsFiltrados.length === 0) {
+                      return <div className="empty">{alertasFiltroVeiculo ? "Nenhuma pendência para essa viatura/embarcação." : "Nenhuma pendência no momento."}</div>;
+                    }
+                    return alertsFiltrados.map((a) => (
                     <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
                       <div className="alert-main">
                         {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
@@ -1135,7 +1187,8 @@ function App() {
                         <Pill sev={a.sev} />
                       </div>
                     </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </>
             )}
@@ -1346,6 +1399,8 @@ const CSS = `
 .chave-preview-info{flex:1;min-width:0;}
 .chave-badge-fora{background:#FCE8DA;color:#C15A1B;}
 .chave-badge-casa{background:#E4F2E8;color:#2F7D4F;}
+.chaves-filtros{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.chaves-filtro-input{flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;color:var(--ink);}
 
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
