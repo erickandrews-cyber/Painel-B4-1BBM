@@ -82,6 +82,7 @@ const Phone = (p) => <Icon {...p} path={<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19
 const Wrench = (p) => <Icon {...p} path={<path d="M14.7 6.3a5 5 0 0 0-6.9 6.9L2 19l3 3 5.8-5.8a5 5 0 0 0 6.9-6.9L14 13l-3-3z" />} />;
 const ShieldAlert = (p) => <Icon {...p} path={<><path d="M12 2 3 7v6c0 5 4 9 9 11 5-2 9-6 9-11V7l-9-5z" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} />;
 const Key = (p) => <Icon {...p} path={<><circle cx="7.5" cy="15.5" r="5.5" /><path d="M21 2l-9.6 9.6" /><path d="M15.5 7.5 19 4" /><path d="M17.5 9.5 21 6" /></>} />;
+const ClipboardList = (p) => <Icon {...p} path={<><rect x="7" y="2" width="10" height="4" rx="1" /><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="16" y2="15" /><line x1="8" y1="19" x2="12" y2="19" /></>} />;
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
 const VSTATUS = {
@@ -144,6 +145,7 @@ const SEED_CHAVES_VEICULOS = [];
 
 const PRIORIDADE_OPCOES = ["Alta", "Média", "Baixa"];
 const SEED_MANUTENCOES = [];
+const SEED_CAUTELAS_EQUIP = [];
 
 const SEED_ESCALAS = [
   { id: "esc1", data: "01/08/2026", militar: "2º Sgt. Ernande", obs: "" },
@@ -323,6 +325,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose }
           {item("embarcacoes", "Embarcações", Anchor)}
           {item("chaves", "Chaves", Key)}
           {item("manutencao", "Manutenção", Wrench)}
+          {item("cautelas", "Cautelas", ClipboardList)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("alertas", "Alertas", AlertTriangle)}
         </nav>
@@ -747,6 +750,118 @@ function EquipamentoModal({ initial, onClose, onSave }) {
   );
 }
 
+/* ---------------- Cautelas de Equipamentos ---------------- */
+function CautelaTooltip({ c, atrasada }) {
+  return (
+    <div className="tt">
+      <div className="tt-row"><User size={13} /><span>Com: {c.militar}</span></div>
+      {c.patrimonio && <div className="tt-row"><ShieldAlert size={13} /><span>Patrimônio: {c.patrimonio}</span></div>}
+      <div className="tt-row"><CalendarDays size={13} /><span>Retirado em: {c.dataRetirada || "não informado"}</span></div>
+      <div className={atrasada ? "tt-row tt-warn" : "tt-row"}><CalendarDays size={13} /><span>Previsão de devolução: {c.dataPrevisao || "não informado"}</span></div>
+      {c.observacao && <div className="tt-row"><span>{c.observacao}</span></div>}
+    </div>
+  );
+}
+
+function CautelaEquipCard({ c, atrasada, onEdit, onDelete, onDevolver }) {
+  const [hover, setHover] = useState(false);
+  let badgeLabel, badgeSev;
+  if (c.dataDevolucao) { badgeLabel = "Devolvido"; badgeSev = SEV.ok; }
+  else if (atrasada) { badgeLabel = "Atrasado"; badgeSev = SEV.critico; }
+  else { badgeLabel = c.militar; badgeSev = { fg: "#C15A1B", bg: "#FCE8DA" }; }
+  return (
+    <div className="vcard" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div className="vcard-media" style={c.foto ? { background: `${c.fotoPosX ?? 50}% ${c.fotoPosY ?? 50}% / cover no-repeat url(${c.foto})` } : {}}>
+        {!c.foto && <ClipboardList size={30} strokeWidth={1.4} />}
+        {!c.foto && <span className="vcard-nofoto"><ImageOff size={11} /> sem foto cadastrada</span>}
+        <span className="pill vcard-badge" style={{ background: badgeSev.bg, color: badgeSev.fg }}>{badgeLabel}</span>
+        {hover && <CautelaTooltip c={c} atrasada={atrasada} />}
+      </div>
+      <div className="vcard-body">
+        <div className="vcard-name">{c.equipamentoNome}</div>
+        <div className="vcard-type">{c.patrimonio ? `Patrimônio: ${c.patrimonio}` : "Sem número de patrimônio"}</div>
+        <div className="alert-sub" style={{ margin: "6px 0" }}>
+          {c.dataDevolucao ? `Devolvido em ${c.dataDevolucao}` : `Previsão de devolução: ${c.dataPrevisao || "não informada"}`}
+        </div>
+        <div className="vcard-actions">
+          {!c.dataDevolucao && <button className="btn-ghost" onClick={() => onDevolver(c)}><CheckCircle2 size={13} /> Devolver</button>}
+          <div className="vcard-icons" style={{ marginLeft: c.dataDevolucao ? 0 : "auto" }}>
+            <button className="icon-btn" title="Editar" onClick={() => onEdit(c)}><Pencil size={14} /></button>
+            <button className="icon-btn icon-danger" title="Excluir" onClick={() => onDelete(c)}><Trash2 size={14} /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CautelaEquipModal({ initial, onClose, onSave }) {
+  const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
+  const initialMilitar = initial?.militar || "";
+  const initialOutro = !!initialMilitar && !isKnown(initialMilitar);
+  const [form, setForm] = useState(initial || { militar: "", equipamentoNome: "", patrimonio: "", observacao: "", dataRetirada: "", dataPrevisao: "", foto: null, fotoPosX: 50, fotoPosY: 50 });
+  const [outro, setOutro] = useState(initialOutro);
+  const [customName, setCustomName] = useState(initialOutro ? initialMilitar : "");
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const handleSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutro(true); setForm({ ...form, militar: customName }); }
+    else { setOutro(false); setForm({ ...form, militar: e.target.value }); }
+  };
+  const handleCustomName = (e) => { setCustomName(e.target.value); setForm({ ...form, militar: e.target.value }); };
+  const setPhoto = async (file) => {
+    try { setForm({ ...form, foto: await fileToCompressedDataUrl(file, 480, 0.75), fotoPosX: 50, fotoPosY: 50 }); }
+    catch (e) { alert("Não foi possível processar essa imagem."); }
+  };
+  const posX = form.fotoPosX ?? 50;
+  const posY = form.fotoPosY ?? 50;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar cautela" : "Nova cautela"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Foto do equipamento
+            <div className="modal-photo" style={form.foto ? { background: `${posX}% ${posY}% / cover no-repeat url(${form.foto})` } : {}}>
+              {!form.foto && <span className="muted-sm">Sem foto</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <label className="btn-secondary sm" style={{ cursor: "pointer" }}>
+                {form.foto ? "Trocar foto" : "Adicionar foto"}
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => e.target.files[0] && setPhoto(e.target.files[0])} />
+              </label>
+              {form.foto && <button type="button" className="btn-secondary sm" onClick={() => setForm({ ...form, foto: null, fotoPosX: 50, fotoPosY: 50 })}>Remover</button>}
+            </div>
+          </label>
+          {form.foto && (
+            <>
+              <label>Enquadramento horizontal<input type="range" min="0" max="100" value={posX} onChange={(e) => setForm({ ...form, fotoPosX: Number(e.target.value) })} /></label>
+              <label>Enquadramento vertical<input type="range" min="0" max="100" value={posY} onChange={(e) => setForm({ ...form, fotoPosY: Number(e.target.value) })} /></label>
+            </>
+          )}
+          <label>Militar responsável
+            <select value={outro ? "__outro__" : form.militar} onChange={handleSelect}>
+              <option value="">Selecione...</option>
+              {MILITARES.map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+              <option value="__outro__">Outro (digitar nome)</option>
+            </select>
+          </label>
+          {outro && (
+            <label>Nome do militar<input value={customName} onChange={handleCustomName} placeholder="Graduação e nome" /></label>
+          )}
+          <label>Nome do equipamento<input value={form.equipamentoNome} onChange={set("equipamentoNome")} placeholder="Ex: Rádio comunicador HT" /></label>
+          <label>Número de patrimônio (se tiver)<input value={form.patrimonio} onChange={set("patrimonio")} placeholder="Ex: 449281 ou deixe em branco" /></label>
+          <label>Observação<textarea rows={3} value={form.observacao} onChange={set("observacao")} placeholder="Detalhes adicionais sobre a cautela" /></label>
+          <label>Data que pegou<input value={form.dataRetirada} onChange={set("dataRetirada")} placeholder="dd/mm/aaaa" /></label>
+          <label>Previsão de devolução<input value={form.dataPrevisao} onChange={set("dataPrevisao")} placeholder="dd/mm/aaaa" /></label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!form.militar || !form.equipamentoNome} onClick={() => onSave({ ...form, id: form.id || uid() })}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EscalaModal({ initial, defaultDate, onClose, onSave }) {
   const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
   const initialMilitar = initial?.militar || "";
@@ -834,9 +949,10 @@ function App() {
   const [chavesLog, saveChavesLog, readyChaves] = useShared("b4-chaves", SEED_CHAVES_LOG);
   const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
   const [manutencoes, saveManutencoes, readyManut] = useShared("b4-manutencoes", SEED_MANUTENCOES);
+  const [cautelasEquip, saveCautelasEquip, readyCautelasEquip] = useShared("b4-cautelas-equip", SEED_CAUTELAS_EQUIP);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "escalas", "alertas"];
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "escalas", "alertas"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) ? h : "geral";
@@ -879,8 +995,12 @@ function App() {
   const [editingEquip, setEditingEquip] = useState(null);
   const [equipModalOpen, setEquipModalOpen] = useState(false);
   const [mostrarConcluidos, setMostrarConcluidos] = useState(false);
+  const [editingCautelaEquip, setEditingCautelaEquip] = useState(null);
+  const [cautelaEquipModalOpen, setCautelaEquipModalOpen] = useState(false);
+  const [mostrarDevolvidas, setMostrarDevolvidas] = useState(false);
+  const [cautelaBusca, setCautelaBusca] = useState("");
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -1002,6 +1122,34 @@ function App() {
   const manutencoesAltaPrioridadeNaoAtrasadas = manutencoesAtivas.filter(
     (e) => e.prioridade === "Alta" && !manutencoesAtrasadas.some((a) => a.id === e.id)
   );
+
+  /* ---- cautelas de equipamentos ---- */
+  const saveCautelaEquip = (form) => {
+    const exists = cautelasEquip.some((x) => x.id === form.id);
+    saveCautelasEquip(exists ? cautelasEquip.map((x) => (x.id === form.id ? form : x)) : [form, ...cautelasEquip]);
+    setCautelaEquipModalOpen(false); setEditingCautelaEquip(null);
+  };
+  const deleteCautelaEquip = (c) => {
+    askConfirm(`Excluir a cautela de "${c.equipamentoNome}"?`, () => saveCautelasEquip(cautelasEquip.filter((x) => x.id !== c.id)));
+  };
+  const devolverCautelaEquip = (c) => {
+    askConfirm(`Confirmar devolução de "${c.equipamentoNome}" por ${c.militar}?`, () => {
+      saveCautelasEquip(cautelasEquip.map((x) => (x.id === c.id ? { ...x, dataDevolucao: agoraFormatado().split(" ")[0] } : x)));
+    });
+  };
+  const cautelasAtivas = cautelasEquip.filter((c) => !c.dataDevolucao);
+  const cautelaAtrasada = (c) => {
+    if (c.dataDevolucao) return false;
+    const dt = parseBRDate(c.dataPrevisao);
+    return dt && dt < new Date(new Date().setHours(0, 0, 0, 0));
+  };
+  const cautelasAtrasadas = cautelasAtivas.filter(cautelaAtrasada);
+  const cautelasVisiveis = (mostrarDevolvidas ? cautelasEquip : cautelasAtivas).filter((c) => {
+    const busca = cautelaBusca.trim().toLowerCase();
+    if (!busca) return true;
+    return c.equipamentoNome.toLowerCase().includes(busca) || c.militar.toLowerCase().includes(busca);
+  });
+
   const today = new Date();
   const calDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
   const calYear = calDate.getFullYear(), calMonth = calDate.getMonth();
@@ -1039,6 +1187,7 @@ function App() {
     embarcacoes: "Controle de Viaturas e Embarcações",
     chaves: "Controle de Viaturas e Embarcações",
     manutencao: "Controle de Viaturas e Embarcações",
+    cautelas: "Controle de Viaturas e Embarcações",
     escalas: "Controle de Viaturas e Embarcações",
     alertas: "Controle de Viaturas e Embarcações",
   };
@@ -1257,6 +1406,50 @@ function App() {
               </>
             )}
 
+            {tab === "cautelas" && (
+              <>
+                <div className="section-head">
+                  <h2>Cautelas de Equipamentos</h2>
+                  <button className="btn-primary sm" onClick={() => { setEditingCautelaEquip(null); setCautelaEquipModalOpen(true); }}><Plus size={14} /> Nova cautela</button>
+                </div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Equipamentos emprestados a militares, com previsão de devolução</div>
+
+                <div className="ov-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", marginBottom: 16 }}>
+                  <div className="stat-card"><div className="stat-num" style={{ color: cautelasAtivas.length ? "#C15A1B" : "#2F7D4F" }}>{cautelasAtivas.length}</div><div className="stat-label">cautelas em aberto</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{ color: cautelasAtrasadas.length ? "#B23B3B" : "#2F7D4F" }}>{cautelasAtrasadas.length}</div><div className="stat-label">devoluções atrasadas</div></div>
+                </div>
+
+                <div className="chaves-filtros">
+                  <input
+                    className="chaves-filtro-input"
+                    value={cautelaBusca}
+                    onChange={(e) => setCautelaBusca(e.target.value)}
+                    placeholder="Buscar por equipamento ou militar..."
+                  />
+                  <button className="btn-secondary sm" onClick={() => setMostrarDevolvidas((v) => !v)}>
+                    {mostrarDevolvidas ? "Ocultar devolvidas" : "Mostrar devolvidas"}
+                  </button>
+                </div>
+
+                {cautelasVisiveis.length === 0 && (
+                  <div className="panel"><div className="empty">Nenhuma cautela encontrada.</div></div>
+                )}
+
+                <div className="grid-vehicles">
+                  {cautelasVisiveis.map((c) => (
+                    <CautelaEquipCard
+                      key={c.id}
+                      c={c}
+                      atrasada={cautelaAtrasada(c)}
+                      onEdit={(c) => { setEditingCautelaEquip(c); setCautelaEquipModalOpen(true); }}
+                      onDelete={deleteCautelaEquip}
+                      onDevolver={devolverCautelaEquip}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
             {tab === "escalas" && (
               <>
                 <h2 className="page-title">Escalas</h2>
@@ -1448,6 +1641,13 @@ function App() {
           initial={editingEquip}
           onClose={() => { setEquipModalOpen(false); setEditingEquip(null); }}
           onSave={saveEquipamento}
+        />
+      )}
+      {cautelaEquipModalOpen && (
+        <CautelaEquipModal
+          initial={editingCautelaEquip}
+          onClose={() => { setCautelaEquipModalOpen(false); setEditingCautelaEquip(null); }}
+          onSave={saveCautelaEquip}
         />
       )}
     </div>
