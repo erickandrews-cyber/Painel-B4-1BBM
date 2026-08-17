@@ -142,6 +142,9 @@ const SEED_EMBARCACOES = [
 const SEED_CHAVES_LOG = [];
 const SEED_CHAVES_VEICULOS = [];
 
+const PRIORIDADE_OPCOES = ["Alta", "Média", "Baixa"];
+const SEED_MANUTENCOES = [];
+
 const SEED_ESCALAS = [
   { id: "esc1", data: "01/08/2026", militar: "2º Sgt. Ernande", obs: "" },
   { id: "esc2", data: "02/08/2026", militar: "3º Sgt. Almeida", obs: "" },
@@ -185,6 +188,11 @@ function parseBRDate(s) {
 }
 function formatCurrency(v) { return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function sameDate(a, b) { return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear(); }
+function prioridadeSev(p) {
+  if (p === "Alta") return SEV.critico;
+  if (p === "Média") return SEV.atencao;
+  return SEV.ok;
+}
 function agoraFormatado() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -314,6 +322,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose }
           {item("viaturas", "Viaturas", Truck)}
           {item("embarcacoes", "Embarcações", Anchor)}
           {item("chaves", "Chaves", Key)}
+          {item("manutencao", "Manutenção", Wrench)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("alertas", "Alertas", AlertTriangle)}
         </nav>
@@ -641,6 +650,103 @@ function DevolverChaveModal({ entry, onClose, onSave }) {
   );
 }
 
+/* ---------------- Manutenção de Equipamentos ---------------- */
+function EquipTooltip({ eq }) {
+  return (
+    <div className="tt">
+      {eq.patrimonio && <div className="tt-row"><ShieldAlert size={13} /><span>Patrimônio: {eq.patrimonio}</span></div>}
+      <div className="tt-row"><Wrench size={13} /><span>Entrada: {eq.dataEntrada || "não informado"}</span></div>
+      <div className="tt-row"><CalendarDays size={13} /><span>Previsão: {eq.dataPrevisao || "não informado"}</span></div>
+      {eq.motivo && <div className="tt-row tt-warn"><AlertTriangle size={13} /><span>{eq.motivo}</span></div>}
+      {eq.observacao && <div className="tt-row"><span>{eq.observacao}</span></div>}
+    </div>
+  );
+}
+
+function EquipamentoCard({ eq, onEdit, onDelete, onConcluir }) {
+  const [hover, setHover] = useState(false);
+  const sev = prioridadeSev(eq.prioridade);
+  return (
+    <div className="vcard" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div className="vcard-media" style={eq.foto ? { background: `${eq.fotoPosX ?? 50}% ${eq.fotoPosY ?? 50}% / cover no-repeat url(${eq.foto})` } : {}}>
+        {!eq.foto && <div className="vcard-warn"><Wrench size={11} /></div>}
+        <span className="pill vcard-badge" style={{ background: sev.bg, color: sev.fg }}>{eq.prioridade}</span>
+        {!eq.foto && <Wrench size={30} strokeWidth={1.4} />}
+        {!eq.foto && <span className="vcard-nofoto"><ImageOff size={11} /> sem foto cadastrada</span>}
+        {eq.dataConclusao && <span className="pill chave-badge-casa" style={{ position: "absolute", bottom: 8, left: 8 }}>Concluído</span>}
+        {hover && <EquipTooltip eq={eq} />}
+      </div>
+      <div className="vcard-body">
+        <div className="vcard-name">{eq.nome}</div>
+        <div className="vcard-type">{eq.patrimonio ? `Patrimônio: ${eq.patrimonio}` : "Sem número de patrimônio"}</div>
+        <div className="alert-sub" style={{ margin: "6px 0" }}>
+          {eq.dataConclusao ? `Concluído em ${eq.dataConclusao}` : `Previsão de entrega: ${eq.dataPrevisao || "não informada"}`}
+        </div>
+        <div className="vcard-actions">
+          {!eq.dataConclusao && <button className="btn-ghost" onClick={() => onConcluir(eq)}><CheckCircle2 size={13} /> Concluir</button>}
+          <div className="vcard-icons" style={{ marginLeft: eq.dataConclusao ? 0 : "auto" }}>
+            <button className="icon-btn" title="Editar" onClick={() => onEdit(eq)}><Pencil size={14} /></button>
+            <button className="icon-btn icon-danger" title="Excluir" onClick={() => onDelete(eq)}><Trash2 size={14} /></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EquipamentoModal({ initial, onClose, onSave }) {
+  const [form, setForm] = useState(initial || { nome: "", patrimonio: "", motivo: "", observacao: "", prioridade: "Média", dataEntrada: "", dataPrevisao: "", foto: null, fotoPosX: 50, fotoPosY: 50 });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const setPhoto = async (file) => {
+    try { setForm({ ...form, foto: await fileToCompressedDataUrl(file, 480, 0.75), fotoPosX: 50, fotoPosY: 50 }); }
+    catch (e) { alert("Não foi possível processar essa imagem."); }
+  };
+  const posX = form.fotoPosX ?? 50;
+  const posY = form.fotoPosY ?? 50;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar equipamento" : "Novo equipamento em manutenção"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Foto do equipamento
+            <div className="modal-photo" style={form.foto ? { background: `${posX}% ${posY}% / cover no-repeat url(${form.foto})` } : {}}>
+              {!form.foto && <span className="muted-sm">Sem foto</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <label className="btn-secondary sm" style={{ cursor: "pointer" }}>
+                {form.foto ? "Trocar foto" : "Adicionar foto"}
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => e.target.files[0] && setPhoto(e.target.files[0])} />
+              </label>
+              {form.foto && <button type="button" className="btn-secondary sm" onClick={() => setForm({ ...form, foto: null, fotoPosX: 50, fotoPosY: 50 })}>Remover</button>}
+            </div>
+          </label>
+          {form.foto && (
+            <>
+              <label>Enquadramento horizontal<input type="range" min="0" max="100" value={posX} onChange={(e) => setForm({ ...form, fotoPosX: Number(e.target.value) })} /></label>
+              <label>Enquadramento vertical<input type="range" min="0" max="100" value={posY} onChange={(e) => setForm({ ...form, fotoPosY: Number(e.target.value) })} /></label>
+            </>
+          )}
+          <label>Nome do equipamento<input value={form.nome} onChange={set("nome")} placeholder="Ex: Motosserra Stihl MS 250" /></label>
+          <label>Número de patrimônio (se tiver)<input value={form.patrimonio} onChange={set("patrimonio")} placeholder="Ex: 449281 ou deixe em branco" /></label>
+          <label>Motivo da quebra<input value={form.motivo} onChange={set("motivo")} placeholder="Ex: Não liga, corrente travada..." /></label>
+          <label>Observação<textarea rows={3} value={form.observacao} onChange={set("observacao")} placeholder="Detalhes adicionais, onde foi levado para conserto, etc." /></label>
+          <label>Prioridade da manutenção
+            <select value={form.prioridade} onChange={set("prioridade")}>
+              {PRIORIDADE_OPCOES.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label>Data de entrada na manutenção<input value={form.dataEntrada} onChange={set("dataEntrada")} placeholder="dd/mm/aaaa" /></label>
+          <label>Previsão de entrega (pós-conserto)<input value={form.dataPrevisao} onChange={set("dataPrevisao")} placeholder="dd/mm/aaaa" /></label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" onClick={() => onSave({ ...form, id: form.id || uid() })} disabled={!form.nome}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EscalaModal({ initial, defaultDate, onClose, onSave }) {
   const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
   const initialMilitar = initial?.militar || "";
@@ -727,9 +833,10 @@ function App() {
   const [escalas, saveEscalas, readyEsc] = useShared("b4-escalas-ago2026", SEED_ESCALAS);
   const [chavesLog, saveChavesLog, readyChaves] = useShared("b4-chaves", SEED_CHAVES_LOG);
   const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
+  const [manutencoes, saveManutencoes, readyManut] = useShared("b4-manutencoes", SEED_MANUTENCOES);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "escalas", "alertas"];
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "escalas", "alertas"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) ? h : "geral";
@@ -767,9 +874,13 @@ function App() {
   const [chavesBuscaData, setChavesBuscaData] = useState("");
   const [chavesVisiveis, setChavesVisiveis] = useState(25);
   const [alertasFiltroVeiculo, setAlertasFiltroVeiculo] = useState("");
+  const [alertasFiltroEquip, setAlertasFiltroEquip] = useState("");
   const [chaveVeiculoModalOpen, setChaveVeiculoModalOpen] = useState(false);
+  const [editingEquip, setEditingEquip] = useState(null);
+  const [equipModalOpen, setEquipModalOpen] = useState(false);
+  const [mostrarConcluidos, setMostrarConcluidos] = useState(false);
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -867,6 +978,30 @@ function App() {
     const dataOk = !chavesBuscaData || c.retiradaEm.includes(chavesBuscaData) || (c.devolvidaEm && c.devolvidaEm.includes(chavesBuscaData));
     return buscaOk && dataOk;
   });
+
+  /* ---- manutenção de equipamentos ---- */
+  const saveEquipamento = (form) => {
+    const exists = manutencoes.some((x) => x.id === form.id);
+    saveManutencoes(exists ? manutencoes.map((x) => (x.id === form.id ? form : x)) : [form, ...manutencoes]);
+    setEquipModalOpen(false); setEditingEquip(null);
+  };
+  const deleteEquipamento = (eq) => {
+    askConfirm(`Excluir "${eq.nome}" do controle de manutenção?`, () => saveManutencoes(manutencoes.filter((x) => x.id !== eq.id)));
+  };
+  const concluirEquipamento = (eq) => {
+    askConfirm(`Marcar "${eq.nome}" como manutenção concluída?`, () => {
+      saveManutencoes(manutencoes.map((x) => (x.id === eq.id ? { ...x, dataConclusao: agoraFormatado().split(" ")[0] } : x)));
+    });
+  };
+  const manutencoesAtivas = manutencoes.filter((e) => !e.dataConclusao);
+  const manutencoesVisiveis = mostrarConcluidos ? manutencoes : manutencoesAtivas;
+  const manutencoesAtrasadas = manutencoesAtivas.filter((e) => {
+    const dt = parseBRDate(e.dataPrevisao);
+    return dt && dt < new Date(new Date().setHours(0, 0, 0, 0));
+  });
+  const manutencoesAltaPrioridadeNaoAtrasadas = manutencoesAtivas.filter(
+    (e) => e.prioridade === "Alta" && !manutencoesAtrasadas.some((a) => a.id === e.id)
+  );
   const today = new Date();
   const calDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
   const calYear = calDate.getFullYear(), calMonth = calDate.getMonth();
@@ -886,17 +1021,24 @@ function App() {
   const badgeVeic = manutCriticaCount === 0 ? SEV.ok : manutCriticaCount === 1 ? SEV.atencao : SEV.critico;
 
   /* ---- alertas agregados ---- */
-  const alerts = [
+  const alertsVeiculos = [
     ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao, veiculoNome: v.nome })),
     ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome })),
     ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 12h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
   ];
+  const alertsEquipamentos = [
+    ...manutencoesAtrasadas.map((e) => ({ id: "al-eq-" + e.id, titulo: `${e.nome} — manutenção com previsão de entrega vencida`, sub: `Previsão era ${e.dataPrevisao}${e.patrimonio ? ` · Patrimônio ${e.patrimonio}` : ""}`, sev: SEV.critico, equipNome: e.nome })),
+    ...manutencoesAltaPrioridadeNaoAtrasadas.map((e) => ({ id: "al-eq-alta-" + e.id, titulo: `${e.nome} — manutenção de prioridade Alta`, sub: `Previsão de entrega: ${e.dataPrevisao || "não informada"}${e.patrimonio ? ` · Patrimônio ${e.patrimonio}` : ""}`, sev: SEV.atencao, equipNome: e.nome })),
+  ];
+  const alerts = [...alertsVeiculos, ...alertsEquipamentos];
+
 
   const subtitleMap = {
     geral: "Controle de Viaturas e Embarcações",
     viaturas: "Controle de Viaturas e Embarcações",
     embarcacoes: "Controle de Viaturas e Embarcações",
     chaves: "Controle de Viaturas e Embarcações",
+    manutencao: "Controle de Viaturas e Embarcações",
     escalas: "Controle de Viaturas e Embarcações",
     alertas: "Controle de Viaturas e Embarcações",
   };
@@ -1077,6 +1219,44 @@ function App() {
               </>
             )}
 
+            {tab === "manutencao" && (
+              <>
+                <div className="section-head">
+                  <h2>Manutenção de Equipamentos</h2>
+                  <button className="btn-primary sm" onClick={() => { setEditingEquip(null); setEquipModalOpen(true); }}><Plus size={14} /> Novo equipamento</button>
+                </div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Equipamentos que quebraram e estão em manutenção/conserto</div>
+
+                <div className="ov-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", marginBottom: 16 }}>
+                  <div className="stat-card"><div className="stat-num" style={{ color: manutencoesAtivas.length ? "#C15A1B" : "#2F7D4F" }}>{manutencoesAtivas.length}</div><div className="stat-label">em manutenção</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{ color: manutencoesAtrasadas.length ? "#B23B3B" : "#2F7D4F" }}>{manutencoesAtrasadas.length}</div><div className="stat-label">com previsão vencida</div></div>
+                </div>
+
+                <div className="section-head" style={{ marginBottom: 10 }}>
+                  <span />
+                  <button className="btn-secondary sm" onClick={() => setMostrarConcluidos((v) => !v)}>
+                    {mostrarConcluidos ? "Ocultar concluídos" : "Mostrar concluídos"}
+                  </button>
+                </div>
+
+                {manutencoesVisiveis.length === 0 && (
+                  <div className="panel"><div className="empty">Nenhum equipamento {mostrarConcluidos ? "cadastrado" : "em manutenção"} no momento.</div></div>
+                )}
+
+                <div className="grid-vehicles">
+                  {manutencoesVisiveis.map((eq) => (
+                    <EquipamentoCard
+                      key={eq.id}
+                      eq={eq}
+                      onEdit={(eq) => { setEditingEquip(eq); setEquipModalOpen(true); }}
+                      onDelete={deleteEquipamento}
+                      onConcluir={concluirEquipamento}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
             {tab === "escalas" && (
               <>
                 <h2 className="page-title">Escalas</h2>
@@ -1159,34 +1339,67 @@ function App() {
               <>
                 <h2 className="page-title">Alertas e Pendências</h2>
                 <div className="muted-sm" style={{ marginBottom: 14 }}>Itens que exigem atenção da equipe da B/4</div>
+
+                <h3 className="alertas-section-title">Viaturas e Embarcações</h3>
                 <div className="chaves-filtros">
-                  <select className="chaves-filtro-input" value={alertasFiltroVeiculo} onChange={(e) => setAlertasFiltroVeiculo(e.target.value)}>
-                    <option value="">Todas as viaturas e embarcações</option>
-                    {[...viaturas, ...embarcacoes].map((v) => <option key={v.id} value={v.nome}>{v.nome}</option>)}
-                  </select>
+                  <input
+                    className="chaves-filtro-input"
+                    value={alertasFiltroVeiculo}
+                    onChange={(e) => setAlertasFiltroVeiculo(e.target.value)}
+                    placeholder="Buscar por nome da viatura ou embarcação..."
+                  />
+                </div>
+                <div className="panel" style={{ marginBottom: 20 }}>
+                  {(() => {
+                    const busca = alertasFiltroVeiculo.trim().toLowerCase();
+                    const filtrados = busca ? alertsVeiculos.filter((a) => (a.veiculoNome || "").toLowerCase().includes(busca)) : alertsVeiculos;
+                    if (filtrados.length === 0) {
+                      return <div className="empty">{busca ? "Nenhuma pendência encontrada para essa busca." : "Nenhuma pendência de viaturas/embarcações no momento."}</div>;
+                    }
+                    return filtrados.map((a) => (
+                      <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
+                        <div className="alert-main">
+                          {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
+                          <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {a.problemaId && !visaoExterna && (
+                            <>
+                              <button className="btn-secondary sm internal-only" onClick={() => resolveProblem(a.problemaId)}>Resolvido</button>
+                              <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => deleteProblem(a.problemaId)}><Trash2 size={14} /></button>
+                            </>
+                          )}
+                          <Pill sev={a.sev} />
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
+                <h3 className="alertas-section-title">Manutenção de Equipamentos</h3>
+                <div className="chaves-filtros">
+                  <input
+                    className="chaves-filtro-input"
+                    value={alertasFiltroEquip}
+                    onChange={(e) => setAlertasFiltroEquip(e.target.value)}
+                    placeholder="Buscar por nome do equipamento..."
+                  />
                 </div>
                 <div className="panel">
                   {(() => {
-                    const alertsFiltrados = alertasFiltroVeiculo ? alerts.filter((a) => a.veiculoNome === alertasFiltroVeiculo) : alerts;
-                    if (alertsFiltrados.length === 0) {
-                      return <div className="empty">{alertasFiltroVeiculo ? "Nenhuma pendência para essa viatura/embarcação." : "Nenhuma pendência no momento."}</div>;
+                    const busca = alertasFiltroEquip.trim().toLowerCase();
+                    const filtrados = busca ? alertsEquipamentos.filter((a) => (a.equipNome || "").toLowerCase().includes(busca)) : alertsEquipamentos;
+                    if (filtrados.length === 0) {
+                      return <div className="empty">{busca ? "Nenhuma pendência encontrada para essa busca." : "Nenhuma pendência de equipamentos no momento."}</div>;
                     }
-                    return alertsFiltrados.map((a) => (
-                    <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
-                      <div className="alert-main">
-                        {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
-                        <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {a.problemaId && !visaoExterna && (
-                          <>
-                            <button className="btn-secondary sm internal-only" onClick={() => resolveProblem(a.problemaId)}>Resolvido</button>
-                            <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => deleteProblem(a.problemaId)}><Trash2 size={14} /></button>
-                          </>
-                        )}
+                    return filtrados.map((a) => (
+                      <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
+                        <div className="alert-main">
+                          {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
+                          <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
+                        </div>
                         <Pill sev={a.sev} />
                       </div>
-                    </div>
                     ));
                   })()}
                 </div>
@@ -1228,6 +1441,13 @@ function App() {
           opcoes={opcoesParaAdicionar}
           onClose={() => setChaveVeiculoModalOpen(false)}
           onSave={addChaveVeiculo}
+        />
+      )}
+      {equipModalOpen && (
+        <EquipamentoModal
+          initial={editingEquip}
+          onClose={() => { setEquipModalOpen(false); setEditingEquip(null); }}
+          onSave={saveEquipamento}
         />
       )}
     </div>
@@ -1401,6 +1621,7 @@ const CSS = `
 .chave-badge-casa{background:#E4F2E8;color:#2F7D4F;}
 .chaves-filtros{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
 .chaves-filtro-input{flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;color:var(--ink);}
+.alertas-section-title{font-family:Georgia,serif;font-size:15px;margin:0 0 8px;color:var(--ink);}
 
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
