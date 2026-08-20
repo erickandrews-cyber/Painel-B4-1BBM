@@ -1193,6 +1193,9 @@ function App() {
   /* ---- overview cards ---- */
   const manutCriticaCount = allVehicles.filter((v) => v.status === "manutencao").length;
   const badgeVeic = manutCriticaCount === 0 ? SEV.ok : manutCriticaCount === 1 ? SEV.atencao : SEV.critico;
+  const countStatus = (list, status) => list.filter((v) => v.status === status).length;
+  const chavesRetiradasCount = chavesLog.filter((c) => !c.devolvidaEm).length;
+  const chavesNoClaviculario = chavesVeiculos.length - chavesRetiradasCount;
 
   /* ---- alertas agregados ---- */
   const alertsVeiculos = [
@@ -1231,13 +1234,51 @@ function App() {
             {tab === "geral" && (
               <>
                 <div className="section-head"><h2>Visão Geral dos Setores</h2><div className="muted-sm">Atualizado em {today.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</div></div>
-                <div className="ov-grid" style={{ gridTemplateColumns: "1fr" }}>
-                  <div className="ov-card">
-                    <div className="ov-top"><div className="ov-icon" style={{ background: "#FBE3E3" }}><Truck size={20} /></div><Pill sev={badgeVeic} /></div>
-                    <div className="ov-num">{String(viaturas.length).padStart(2, "0")} + {String(embarcacoes.length).padStart(2, "0")}</div>
-                    <div className="ov-label">viaturas e embarcações</div>
+                <div className="ov-grid ov-grid-5">
+                  <div className="ov-card ov-card-click" onClick={() => setTab("viaturas")}>
+                    <div className="ov-top"><div className="ov-icon" style={{ background: "#FBE3E3" }}><Truck size={20} /></div><div className="ov-card-title">Viaturas</div><Pill sev={badgeVeic} /></div>
+                    <div className="ov-num">{viaturas.length}</div>
+                    <div className="ov-label">viaturas cadastradas</div>
+                    <div className="ov-breakdown">
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.disponivel.fg }} />{countStatus(viaturas, "disponivel")} Disponível</span>
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.emprestado.fg }} />{countStatus(viaturas, "emprestado")} Emprestada</span>
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.manutencao.fg }} />{countStatus(viaturas, "manutencao")} Manutenção</span>
+                    </div>
+                  </div>
+
+                  <div className="ov-card ov-card-click" onClick={() => setTab("embarcacoes")}>
+                    <div className="ov-top"><div className="ov-icon" style={{ background: "#E3EDFB" }}><Anchor size={20} /></div><div className="ov-card-title">Embarcações</div></div>
+                    <div className="ov-num">{embarcacoes.length}</div>
+                    <div className="ov-label">embarcações cadastradas</div>
+                    <div className="ov-breakdown">
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.disponivel.fg }} />{countStatus(embarcacoes, "disponivel")} Disponível</span>
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.emprestado.fg }} />{countStatus(embarcacoes, "emprestado")} Emprestada</span>
+                      <span className="ov-breakdown-item"><i className="ov-dot" style={{ background: VSTATUS.manutencao.fg }} />{countStatus(embarcacoes, "manutencao")} Manutenção</span>
+                    </div>
+                  </div>
+
+                  <div className="ov-card ov-card-click" onClick={() => setTab("chaves")}>
+                    <div className="ov-top"><div className="ov-icon" style={{ background: "#FCE8DA" }}><Key size={20} /></div><div className="ov-card-title">Chaves</div><Pill sev={chavesRetiradasCount ? { label: "Atenção", fg: "#C15A1B", bg: "#FCE8DA" } : SEV.ok} /></div>
+                    <div className="ov-num">{chavesVeiculos.length}</div>
+                    <div className="ov-label">viaturas no controle de chaves</div>
                     <div className="ov-divider" />
-                    <div className="ov-sub">Frota · {manutCriticaCount} em manutenção</div>
+                    <div className="ov-sub">{chavesNoClaviculario} no claviculário · {chavesRetiradasCount} retirada(s)</div>
+                  </div>
+
+                  <div className="ov-card ov-card-click" onClick={() => setTab("manutencao")}>
+                    <div className="ov-top"><div className="ov-icon" style={{ background: "#FBF0DC" }}><Wrench size={20} /></div><div className="ov-card-title">Manutenção</div><Pill sev={manutencoesAtrasadas.length ? SEV.critico : manutencoesAtivas.length ? SEV.atencao : SEV.ok} /></div>
+                    <div className="ov-num">{manutencoesAtivas.length}</div>
+                    <div className="ov-label">equipamentos em manutenção</div>
+                    <div className="ov-divider" />
+                    <div className="ov-sub">{manutencoesAtrasadas.length} com previsão vencida</div>
+                  </div>
+
+                  <div className="ov-card ov-card-click" onClick={() => setTab("cautelas")}>
+                    <div className="ov-top"><div className="ov-icon" style={{ background: "#E4F2E8" }}><ClipboardList size={20} /></div><div className="ov-card-title">Cautelas</div><Pill sev={cautelasAtrasadas.length ? SEV.critico : cautelasAtivas.length ? SEV.atencao : SEV.ok} /></div>
+                    <div className="ov-num">{cautelasAtivas.length}</div>
+                    <div className="ov-label">cautelas em aberto</div>
+                    <div className="ov-divider" />
+                    <div className="ov-sub">{cautelasAtrasadas.length} com devolução atrasada</div>
                   </div>
                 </div>
 
@@ -1723,7 +1764,7 @@ const CSS = `
 .sidebar-foot{font-size:10.5px;color:#8A8378;line-height:1.6;padding:14px 8px 0;border-top:1px solid #322C26;margin-top:10px;}
 .main-col{flex:1;display:flex;flex-direction:column;min-width:0;}
 .header{background:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
-.header h1{font-family:Georgia,serif;font-size:22px;margin:0;}
+.header h1{font-size:22px;margin:0;}
 .header-sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
 .header-right{display:flex;align-items:center;gap:18px;}
 .toggle{background:#F1EDE3;border-radius:20px;padding:3px;display:flex;}
@@ -1740,13 +1781,20 @@ const CSS = `
 .user-name{font-size:12.5px;font-weight:700;}
 .user-role{font-size:11px;color:var(--muted);}
 .content{flex:1;padding:22px 28px 40px;max-width:1180px;}
-.page-title{font-family:Georgia,serif;font-size:20px;margin:0 0 4px;}
+.page-title{font-size:20px;margin:0 0 4px;}
 .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
-.section-head h2{font-family:Georgia,serif;font-size:19px;margin:0;}
+.section-head h2{font-size:19px;margin:0;}
 .muted-sm{font-size:12px;color:var(--muted);}
 .ov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
+.ov-grid-5{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
+.ov-breakdown{display:flex;flex-direction:column;gap:5px;margin-top:10px;}
+.ov-breakdown-item{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
+.ov-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.ov-card-click{cursor:pointer;transition:transform .12s ease, box-shadow .12s ease;}
+.ov-card-click:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(33,28,24,.1);}
 .ov-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;}
-.ov-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.ov-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;}
+.ov-card-title{flex:1;font-weight:700;font-size:14.5px;color:var(--ink);}
 .ov-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;}
 .ov-num{font-family:Georgia,serif;font-size:26px;font-weight:700;}
 .ov-label{font-size:12.5px;color:var(--muted);margin-top:2px;}
