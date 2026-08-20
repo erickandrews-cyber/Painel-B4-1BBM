@@ -380,7 +380,7 @@ function Tooltip({ v }) {
   );
 }
 
-function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onRemovePhoto, onResolveProblems, externa }) {
+function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onRemovePhoto, onViewProblems, externa }) {
   const [hover, setHover] = useState(false);
   const s = VSTATUS[v.status] || VSTATUS.disponivel;
   return (
@@ -408,13 +408,9 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
             <div className="vcard-type">{v.tipo}</div>
           </div>
           {problemCount > 0 && (
-            externa ? (
-              <div className="pcount"><ShieldAlert size={12} />{problemCount}</div>
-            ) : (
-              <button className="pcount pcount-btn internal-only" title="Marcar problema(s) como resolvido(s)" onClick={() => onResolveProblems(v.id)}>
-                <ShieldAlert size={12} />{problemCount}
-              </button>
-            )
+            <button className="pcount pcount-btn" title="Ver problemas reportados" onClick={() => onViewProblems(v)}>
+              <ShieldAlert size={12} />{problemCount}
+            </button>
           )}
         </div>
         <div className="vcard-info">
@@ -541,6 +537,40 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
         <div className="modal-foot">
           <button className="btn-secondary" onClick={onClose}>Cancelar</button>
           <button className="btn-primary" disabled={!condutor || !descricao} onClick={() => onSubmit({ id: uid(), veiculoId: vehicle.id, veiculoNome: vehicle.nome, condutor, categoria, descricao, foto, data: new Date().toLocaleDateString("pt-BR"), status: "aberto" })}>Enviar relato</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProblemsListModal({ veiculo, problemas, onClose, onResolve, onDelete, onViewPhoto, externa }) {
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Problemas reportados — {veiculo.nome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          {problemas.length === 0 && <div className="empty">Nenhum problema em aberto para essa viatura.</div>}
+          {problemas.map((p) => (
+            <div key={p.id} className="problem-item">
+              <div className="alert-main">
+                {p.foto && <img className="alert-thumb" src={p.foto} alt="" onClick={() => onViewPhoto(p.foto)} />}
+                <div>
+                  <div className="alert-title">{p.categoria}</div>
+                  <div className="alert-sub">{p.condutor} · {p.data}</div>
+                  {p.descricao && <div className="alert-desc">{p.descricao}</div>}
+                </div>
+              </div>
+              {!externa && (
+                <div className="problem-item-actions">
+                  <button className="btn-secondary sm" onClick={() => onResolve(p.id)}>Resolvido</button>
+                  <button className="icon-btn icon-danger" title="Excluir" onClick={() => onDelete(p.id)}><Trash2 size={14} /></button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Fechar</button>
         </div>
       </div>
     </div>
@@ -977,6 +1007,7 @@ function App() {
   const [editing, setEditing] = useState(null);
   const [editingCollection, setEditingCollection] = useState(null);
   const [reporting, setReporting] = useState(null);
+  const [viewingProblemsVeiculo, setViewingProblemsVeiculo] = useState(null);
   const [editingEscala, setEditingEscala] = useState(null);
   const [editingEscalaOpen, setEditingEscalaOpen] = useState(false);
   const [escalaDefaultDate, setEscalaDefaultDate] = useState("");
@@ -1024,11 +1055,6 @@ function App() {
   };
   const submitReport = (report) => { saveProblemas([report, ...problemas]); setReporting(null); };
   const resolveProblem = (id) => saveProblemas(problemas.map((p) => (p.id === id ? { ...p, status: "resolvido" } : p)));
-  const resolveProblemsForVehicle = (veiculoId) => {
-    askConfirm("Marcar problema(s) reportado(s) desta viatura/embarcação como resolvido(s)?", () => {
-      saveProblemas(problemas.map((p) => (p.veiculoId === veiculoId && p.status === "aberto" ? { ...p, status: "resolvido" } : p)));
-    });
-  };
   const deleteProblem = (id) => saveProblemas(problemas.filter((p) => p.id !== id));
 
   const handleVehiclePhoto = async (collection, v, file) => {
@@ -1256,7 +1282,7 @@ function App() {
                 </div>
                 <div className="grid-vehicles">
                   {(tab === "viaturas" ? viaturas : embarcacoes).map((v) => (
-                    <VehicleCard key={v.id} v={v} problemCount={problemCountFor(v.id)} onEdit={(v) => openEdit(tab, v)} onDelete={(v) => deleteVehicle(tab, v)} onReport={(v) => setReporting(v)} onPhoto={(v, file) => handleVehiclePhoto(tab, v, file)} onRemovePhoto={(v) => handleRemoveVehiclePhoto(tab, v)} onResolveProblems={resolveProblemsForVehicle} externa={visaoExterna} />
+                    <VehicleCard key={v.id} v={v} problemCount={problemCountFor(v.id)} onEdit={(v) => openEdit(tab, v)} onDelete={(v) => deleteVehicle(tab, v)} onReport={(v) => setReporting(v)} onPhoto={(v, file) => handleVehiclePhoto(tab, v, file)} onRemovePhoto={(v) => handleRemoveVehiclePhoto(tab, v)} onViewProblems={(v) => setViewingProblemsVeiculo(v)} externa={visaoExterna} />
                   ))}
                 </div>
               </>
@@ -1605,6 +1631,17 @@ function App() {
 
       {editingCollection && <VehicleModal initial={editing} onClose={closeEdit} onSave={saveEdit} />}
       {reporting && <ReportModal vehicle={reporting} onClose={() => setReporting(null)} onSubmit={submitReport} />}
+      {viewingProblemsVeiculo && (
+        <ProblemsListModal
+          veiculo={viewingProblemsVeiculo}
+          problemas={problemas.filter((p) => p.veiculoId === viewingProblemsVeiculo.id && p.status === "aberto")}
+          onClose={() => setViewingProblemsVeiculo(null)}
+          onResolve={resolveProblem}
+          onDelete={deleteProblem}
+          onViewPhoto={setViewingPhoto}
+          externa={visaoExterna}
+        />
+      )}
       {editingEscalaOpen && <EscalaModal initial={editingEscala} defaultDate={escalaDefaultDate} onClose={() => { setEditingEscalaOpen(false); setEditingEscala(null); }} onSave={saveEscala} />}
       {editingOrgOpen && <OrgModal initial={org} onClose={() => setEditingOrgOpen(false)} onSave={(form) => { saveOrg(form); setEditingOrgOpen(false); }} />}
       {pendingConfirm && (
@@ -1749,6 +1786,9 @@ const CSS = `
 .pcount{display:flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--red-dark);background:#FBE3E3;padding:2px 6px;border-radius:10px;height:fit-content;}
 .pcount-btn{border:none;cursor:pointer;}
 .pcount-btn:hover{background:#B23B3B;color:#fff;}
+.problem-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0;border-top:1px solid var(--border);}
+.problem-item:first-of-type{border-top:none;}
+.problem-item-actions{display:flex;gap:6px;flex-shrink:0;align-items:center;}
 .vcard-sub{font-size:12px;color:var(--muted);margin:6px 0 10px;}
 .vcard-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0 10px;}
 .vcard-info-row{display:flex;justify-content:space-between;gap:6px;font-size:11px;border-bottom:1px dotted var(--border);padding-bottom:2px;}
