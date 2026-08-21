@@ -419,6 +419,7 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
           <div className="vcard-info-row"><span className="vcard-info-k">Capacidade</span><span className="vcard-info-v">{v.capacidade > 0 ? `${v.capacidade} L` : "—"}</span></div>
           <div className="vcard-info-row"><span className="vcard-info-k">Engate</span><span className="vcard-info-v">{v.engate}</span></div>
           <div className="vcard-info-row"><span className="vcard-info-k">Equipada</span><span className="vcard-info-v" style={{ color: v.equipada === "Sim" ? "#2F7D4F" : "#B23B3B" }}>{v.equipada || "Não"}</span></div>
+          <div className="vcard-info-row"><span className="vcard-info-k">Chassi</span><span className="vcard-info-v">{v.chassi || "—"}</span></div>
         </div>
         {!externa && (
           <div className="vcard-actions internal-only">
@@ -438,7 +439,7 @@ function VehicleModal({ initial, onClose, onSave }) {
   const isKnownQth = (v) => QTH_OPCOES.includes(v);
   const initialQth = initial?.qth || "";
   const initialOutroQth = !!initialQth && !isKnownQth(initialQth);
-  const [form, setForm] = useState(initial || { nome: "", tipo: "", qth: QTH_OPCOES[0], placa: "", capacidade: 0, engate: "Não", equipada: "Não", status: "disponivel", motivo: "", ultimaManutencao: "", km: "", foto: null, fotoPosX: 50, fotoPosY: 50 });
+  const [form, setForm] = useState(initial || { nome: "", tipo: "", qth: QTH_OPCOES[0], placa: "", capacidade: 0, engate: "Não", equipada: "Não", chassi: "", status: "disponivel", motivo: "", ultimaManutencao: "", km: "", foto: null, fotoPosX: 50, fotoPosY: 50 });
   const [outroQth, setOutroQth] = useState(initialOutroQth);
   const [customQth, setCustomQth] = useState(initialOutroQth ? initialQth : "");
   const set = (k) => (e) => setForm({ ...form, [k]: k === "capacidade" ? Number(e.target.value) : e.target.value });
@@ -496,6 +497,7 @@ function VehicleModal({ initial, onClose, onSave }) {
           <label>Capacidade (L)<input type="number" value={form.capacidade} onChange={set("capacidade")} placeholder="Ex: 4000 ou 0" /></label>
           <label>Possui engate<select value={form.engate} onChange={set("engate")}><option>Não</option><option>Sim</option></select></label>
           <label>Viatura equipada<select value={form.equipada || "Não"} onChange={set("equipada")}><option>Não</option><option>Sim</option></select></label>
+          <label>Número de chassi<input value={form.chassi || ""} onChange={set("chassi")} placeholder="Ex: 9BWZZZ377VT004251 ou deixe em branco" /></label>
           <label>Status<select value={form.status} onChange={set("status")}>{Object.entries(VSTATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
           <label>Motivo (se não disponível)<input value={form.motivo} onChange={set("motivo")} /></label>
           <label>Última manutenção<input value={form.ultimaManutencao} onChange={set("ultimaManutencao")} placeholder="dd/mm/aaaa" /></label>
