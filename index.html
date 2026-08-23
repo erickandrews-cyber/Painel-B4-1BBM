@@ -260,13 +260,29 @@ function fillMissingPhotos(list, seedList) {
   return list.map((v) => (!v.foto && seedByName[v.nome] ? { ...v, foto: seedByName[v.nome] } : v));
 }
 
-async function loadShared(key, seed, setValue, setReady) {
+async function loadShared(key, seed, setValue, setReady, attempt) {
+  attempt = attempt || 1;
   try {
     const res = await window.storage.get(key, true);
-    if (res && res.value) setValue(JSON.parse(res.value));
-    else await window.storage.set(key, JSON.stringify(seed), true);
+    if (res && res.value) { setValue(JSON.parse(res.value)); setReady(true); return; }
+    // Documento existe mas está vazio de verdade — seguro popular com o padrão.
+    await window.storage.set(key, JSON.stringify(seed), true);
+    setValue(seed);
   } catch (e) {
-    try { await window.storage.set(key, JSON.stringify(seed), true); } catch (e2) {}
+    const genuinelyMissing = e && e.message === "not found";
+    if (genuinelyMissing) {
+      // Chave nunca existiu — primeira vez usando o painel, seguro criar com o padrão.
+      try { await window.storage.set(key, JSON.stringify(seed), true); } catch (e2) {}
+      setValue(seed);
+    } else if (attempt < 3) {
+      // Falha passageira (rede, limite do Firebase, etc.) — tenta de novo em vez de apagar dado real.
+      setTimeout(() => loadShared(key, seed, setValue, setReady, attempt + 1), 1200);
+      return;
+    } else {
+      // Falhou 3 vezes: mostra o padrão só nessa sessão, SEM gravar por cima do dado real salvo.
+      console.error(`Não foi possível carregar "${key}" do Firebase. Mantendo dado remoto intacto.`, e);
+      setValue(seed);
+    }
   }
   setReady(true);
 }
