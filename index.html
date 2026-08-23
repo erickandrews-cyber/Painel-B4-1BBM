@@ -245,6 +245,24 @@ function fileToCompressedDataUrl(file, maxDim = 360, quality = 0.72) {
   });
 }
 
+function fileToRawDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 const DEFAULT_ORG = { chefeNome: "3º Sgt. Marques", chefeCargo: "Chefe da Seção B/4", brasao: null };
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -543,9 +561,19 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
   const [categoria, setCategoria] = useState(CATEGORIAS_PROBLEMA[0]);
   const [descricao, setDescricao] = useState("");
   const [foto, setFoto] = useState(null);
+  const [documento, setDocumento] = useState(null);
+  const [documentoNome, setDocumentoNome] = useState("");
+  const [documentoTipo, setDocumentoTipo] = useState("");
   const setPhoto = async (file) => {
     try { setFoto(await fileToCompressedDataUrl(file, 480, 0.75)); }
     catch (e) { alert("Não foi possível processar essa imagem."); }
+  };
+  const setDoc = async (file) => {
+    if (file.size > 8 * 1024 * 1024) { alert("Esse arquivo é muito grande (máx. 8 MB). Tente comprimir ou usar uma foto do documento em vez do PDF original."); return; }
+    try {
+      const dataUrl = file.type.startsWith("image/") ? await fileToCompressedDataUrl(file, 1400, 0.8) : await fileToRawDataUrl(file);
+      setDocumento(dataUrl); setDocumentoNome(file.name); setDocumentoTipo(file.type);
+    } catch (e) { alert("Não foi possível processar esse arquivo."); }
   };
   return (
     <div className="modal-back" onClick={onClose}>
@@ -566,10 +594,20 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
               {foto && <button type="button" className="btn-secondary sm" onClick={() => setFoto(null)}>Remover</button>}
             </div>
           </label>
+          <label>Documento — Parte (opcional)
+            {documento && <div className="doc-attached"><ClipboardList size={14} /> {documentoNome}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <label className="btn-secondary sm" style={{ cursor: "pointer" }}>
+                {documento ? "Trocar documento" : "Anexar Parte (foto ou PDF)"}
+                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => e.target.files[0] && setDoc(e.target.files[0])} />
+              </label>
+              {documento && <button type="button" className="btn-secondary sm" onClick={() => { setDocumento(null); setDocumentoNome(""); setDocumentoTipo(""); }}>Remover</button>}
+            </div>
+          </label>
         </div>
         <div className="modal-foot">
           <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn-primary" disabled={!condutor || !descricao} onClick={() => onSubmit({ id: uid(), veiculoId: vehicle.id, veiculoNome: vehicle.nome, condutor, categoria, descricao, foto, data: new Date().toLocaleDateString("pt-BR"), status: "aberto" })}>Enviar relato</button>
+          <button className="btn-primary" disabled={!condutor || !descricao} onClick={() => onSubmit({ id: uid(), veiculoId: vehicle.id, veiculoNome: vehicle.nome, condutor, categoria, descricao, foto, documento, documentoNome, documentoTipo, data: new Date().toLocaleDateString("pt-BR"), status: "aberto" })}>Enviar relato</button>
         </div>
       </div>
     </div>
@@ -591,6 +629,12 @@ function ProblemsListModal({ veiculo, problemas, onClose, onResolve, onDelete, o
                   <div className="alert-title">{p.categoria}</div>
                   <div className="alert-sub">{p.condutor} · {p.data}</div>
                   {p.descricao && <div className="alert-desc">{p.descricao}</div>}
+                  {(p.foto || p.documento) && (
+                    <div className="doc-downloads">
+                      {p.foto && <button className="link-btn sm" onClick={() => downloadDataUrl(p.foto, `foto-${p.veiculoNome}-${p.data.replace(/\//g, "-")}.jpg`)}><Download size={12} /> Baixar foto</button>}
+                      {p.documento && <button className="link-btn sm" onClick={() => downloadDataUrl(p.documento, p.documentoNome || `parte-${p.veiculoNome}.pdf`)}><Download size={12} /> Baixar Parte</button>}
+                    </div>
+                  )}
                 </div>
               </div>
               {!externa && (
@@ -1013,6 +1057,7 @@ function App() {
   const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
   const [manutencoes, saveManutencoes, readyManut] = useShared("b4-manutencoes", SEED_MANUTENCOES);
   const [cautelasEquip, saveCautelasEquip, readyCautelasEquip] = useShared("b4-cautelas-equip", SEED_CAUTELAS_EQUIP);
+  const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
 
   const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "escalas", "alertas"];
@@ -1064,7 +1109,7 @@ function App() {
   const [mostrarDevolvidas, setMostrarDevolvidas] = useState(false);
   const [cautelaBusca, setCautelaBusca] = useState("");
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -1087,7 +1132,7 @@ function App() {
     });
   };
   const submitReport = (report) => { saveProblemas([report, ...problemas]); setReporting(null); };
-  const resolveProblem = (id) => saveProblemas(problemas.map((p) => (p.id === id ? { ...p, status: "resolvido" } : p)));
+  const resolveProblem = (id) => saveProblemas(problemas.map((p) => (p.id === id ? { ...p, status: "resolvido", foto: null, documento: null, documentoNome: null, documentoTipo: null } : p)));
   const deleteProblem = (id) => saveProblemas(problemas.filter((p) => p.id !== id));
 
   const handleVehiclePhoto = async (collection, v, file) => {
@@ -1115,7 +1160,7 @@ function App() {
     const payload = {
       geradoEm: new Date().toISOString(),
       painel: "Controle de Viaturas — B/4 — 1º BBM",
-      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip },
+      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados },
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1148,6 +1193,7 @@ function App() {
         if (d.chavesVeiculos) saveChavesVeiculos(d.chavesVeiculos);
         if (d.manutencoes) saveManutencoes(d.manutencoes);
         if (d.cautelasEquip) saveCautelasEquip(d.cautelasEquip);
+        if (d.alertasDispensados) saveAlertasDispensados(d.alertasDispensados);
         alert("Backup restaurado com sucesso!");
       });
     };
@@ -1184,7 +1230,7 @@ function App() {
     if (c.devolvidaEm) return false;
     const dt = parseBRDateHora(c.retiradaEm);
     if (!dt) return false;
-    return (Date.now() - dt.getTime()) / 3600000 >= 12;
+    return (Date.now() - dt.getTime()) / 3600000 >= 30;
   });
   const addChaveVeiculo = (veiculoId) => {
     if (!chavesVeiculos.includes(veiculoId)) saveChavesVeiculos([...chavesVeiculos, veiculoId]);
@@ -1275,17 +1321,23 @@ function App() {
   const chavesNoClaviculario = chavesVeiculos.length - chavesRetiradasCount;
 
   /* ---- alertas agregados ---- */
-  const alertsVeiculos = [
-    ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id, titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao, veiculoNome: v.nome })),
+  const alertsVeiculosRaw = [
+    ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id + "-" + (v.motivo || ""), titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao, veiculoNome: v.nome })),
     ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome })),
-    ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 12h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
+    ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 30h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
   ];
-  const alertsEquipamentos = [
+  const alertsEquipamentosRaw = [
     ...manutencoesAtrasadas.map((e) => ({ id: "al-eq-" + e.id, titulo: `${e.nome} — manutenção com previsão de entrega vencida`, sub: `Previsão era ${e.dataPrevisao}${e.patrimonio ? ` · Patrimônio ${e.patrimonio}` : ""}`, sev: SEV.critico, equipNome: e.nome })),
     ...manutencoesAltaPrioridadeNaoAtrasadas.map((e) => ({ id: "al-eq-alta-" + e.id, titulo: `${e.nome} — manutenção de prioridade Alta`, sub: `Previsão de entrega: ${e.dataPrevisao || "não informada"}${e.patrimonio ? ` · Patrimônio ${e.patrimonio}` : ""}`, sev: SEV.atencao, equipNome: e.nome })),
   ];
+  const alertsVeiculos = alertsVeiculosRaw.filter((a) => !alertasDispensados.includes(a.id));
+  const alertsEquipamentos = alertsEquipamentosRaw.filter((a) => !alertasDispensados.includes(a.id));
   const alerts = [...alertsVeiculos, ...alertsEquipamentos];
-
+  const dismissAlert = (id, titulo) => {
+    askConfirm(`Excluir "${titulo}" da lista de alertas? Ele só vai voltar a aparecer se a situação mudar de novo.`, () => {
+      saveAlertasDispensados([...alertasDispensados, id]);
+    });
+  };
 
   const subtitleMap = {
     geral: "Controle de Viaturas e Embarcações",
@@ -1706,6 +1758,9 @@ function App() {
                               <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => deleteProblem(a.problemaId)}><Trash2 size={14} /></button>
                             </>
                           )}
+                          {!a.problemaId && !visaoExterna && (
+                            <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => dismissAlert(a.id, a.titulo)}><Trash2 size={14} /></button>
+                          )}
                           <Pill sev={a.sev} />
                         </div>
                       </div>
@@ -1735,7 +1790,12 @@ function App() {
                           {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
                           <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
                         </div>
-                        <Pill sev={a.sev} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {!visaoExterna && (
+                            <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => dismissAlert(a.id, a.titulo)}><Trash2 size={14} /></button>
+                          )}
+                          <Pill sev={a.sev} />
+                        </div>
                       </div>
                     ));
                   })()}
@@ -1918,6 +1978,10 @@ const CSS = `
 .problem-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0;border-top:1px solid var(--border);}
 .problem-item:first-of-type{border-top:none;}
 .problem-item-actions{display:flex;gap:6px;flex-shrink:0;align-items:center;}
+.doc-attached{display:flex;align-items:center;gap:6px;font-size:12px;background:#F0EBE0;border-radius:6px;padding:6px 10px;margin:4px 0;color:var(--ink);}
+.doc-downloads{display:flex;gap:12px;margin-top:6px;}
+.link-btn.sm{font-size:11px;display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:#8A5A2E;font-weight:600;cursor:pointer;padding:0;}
+.link-btn.sm:hover{text-decoration:underline;}
 .vcard-sub{font-size:12px;color:var(--muted);margin:6px 0 10px;}
 .vcard-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0 10px;}
 .vcard-info-row{display:flex;justify-content:space-between;gap:6px;font-size:11px;border-bottom:1px dotted var(--border);padding-bottom:2px;}
