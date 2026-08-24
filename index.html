@@ -559,6 +559,7 @@ function VehicleModal({ initial, onClose, onSave }) {
 function ReportModal({ vehicle, onClose, onSubmit }) {
   const [condutor, setCondutor] = useState("");
   const [categoria, setCategoria] = useState(CATEGORIAS_PROBLEMA[0]);
+  const [prioridade, setPrioridade] = useState("Média");
   const [descricao, setDescricao] = useState("");
   const [foto, setFoto] = useState(null);
   const [documento, setDocumento] = useState(null);
@@ -583,6 +584,11 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
           <label>Viatura / embarcação<input value={vehicle.nome} disabled /></label>
           <label>Nome do condutor<input value={condutor} onChange={(e) => setCondutor(e.target.value)} placeholder="Nome de guerra" /></label>
           <label>Categoria do problema<select value={categoria} onChange={(e) => setCategoria(e.target.value)}>{CATEGORIAS_PROBLEMA.map((c) => <option key={c}>{c}</option>)}</select></label>
+          <label>Urgência do problema
+            <select value={prioridade} onChange={(e) => setPrioridade(e.target.value)}>
+              {PRIORIDADE_OPCOES.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
           <label>Descrição do problema<textarea rows={4} value={descricao} onChange={(e) => setDescricao(e.target.value)} /></label>
           <label>Foto (opcional)
             {foto && <div className="modal-photo" style={{ backgroundImage: `url(${foto})` }} />}
@@ -607,26 +613,35 @@ function ReportModal({ vehicle, onClose, onSubmit }) {
         </div>
         <div className="modal-foot">
           <button className="btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn-primary" disabled={!condutor || !descricao} onClick={() => onSubmit({ id: uid(), veiculoId: vehicle.id, veiculoNome: vehicle.nome, condutor, categoria, descricao, foto, documento, documentoNome, documentoTipo, data: new Date().toLocaleDateString("pt-BR"), status: "aberto" })}>Enviar relato</button>
+          <button className="btn-primary" disabled={!condutor || !descricao} onClick={() => onSubmit({ id: uid(), veiculoId: vehicle.id, veiculoNome: vehicle.nome, condutor, categoria, prioridade, descricao, foto, documento, documentoNome, documentoTipo, data: new Date().toLocaleDateString("pt-BR"), status: "aberto" })}>Enviar relato</button>
         </div>
       </div>
     </div>
   );
 }
 
+const PRIORIDADE_ORDEM = { Alta: 0, "Média": 1, Baixa: 2 };
 function ProblemsListModal({ veiculo, problemas, onClose, onResolve, onDelete, onViewPhoto, externa }) {
+  const ordenados = [...problemas].sort((a, b) => {
+    const pa = PRIORIDADE_ORDEM[a.prioridade || "Média"] ?? 1;
+    const pb = PRIORIDADE_ORDEM[b.prioridade || "Média"] ?? 1;
+    return pa - pb;
+  });
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head"><h3>Problemas reportados — {veiculo.nome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
         <div className="modal-body">
-          {problemas.length === 0 && <div className="empty">Nenhum problema em aberto para essa viatura.</div>}
-          {problemas.map((p) => (
+          {ordenados.length === 0 && <div className="empty">Nenhum problema em aberto para essa viatura.</div>}
+          {ordenados.map((p) => {
+            const prio = p.prioridade || "Média";
+            const sev = prioridadeSev(prio);
+            return (
             <div key={p.id} className="problem-item">
               <div className="alert-main">
                 {p.foto && <img className="alert-thumb" src={p.foto} alt="" onClick={() => onViewPhoto(p.foto)} />}
                 <div>
-                  <div className="alert-title">{p.categoria}</div>
+                  <div className="alert-title">{p.categoria} <span className="pill" style={{ background: sev.bg, color: sev.fg, marginLeft: 6 }}>{prio}</span></div>
                   <div className="alert-sub">{p.condutor} · {p.data}</div>
                   {p.descricao && <div className="alert-desc">{p.descricao}</div>}
                   {(p.foto || p.documento) && (
@@ -644,7 +659,8 @@ function ProblemsListModal({ veiculo, problemas, onClose, onResolve, onDelete, o
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
         <div className="modal-foot">
           <button className="btn-secondary" onClick={onClose}>Fechar</button>
@@ -1323,7 +1339,11 @@ function App() {
   /* ---- alertas agregados ---- */
   const alertsVeiculosRaw = [
     ...allVehicles.filter((v) => v.status === "manutencao").map((v) => ({ id: "al-" + v.id + "-" + (v.motivo || ""), titulo: `${v.nome} — ${v.motivo || "em manutenção"}`, sub: `${viaturas.includes(v) ? "Viaturas" : "Embarcações"}`, sev: SEV.atencao, veiculoNome: v.nome })),
-    ...problemasAbertos.map((p) => ({ id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data}`, desc: p.descricao, sev: SEV.atencao, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome })),
+    ...problemasAbertos.map((p) => {
+      const prio = p.prioridade || "Média";
+      const cor = prioridadeSev(prio);
+      return { id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data} · Urgência: ${prio}`, desc: p.descricao, sev: { label: prio, fg: cor.fg, bg: cor.bg }, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome };
+    }),
     ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 30h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
   ];
   const alertsEquipamentosRaw = [
