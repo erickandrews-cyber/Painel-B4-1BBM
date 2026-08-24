@@ -386,7 +386,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
 }
 
 /* ---------------- Header ---------------- */
-function Header({ subtitle, org, onEditOrg, onMenuClick }) {
+function Header({ subtitle, org, onEditOrg, onMenuClick, visaoExterna, onUnlockClick, onLock }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -397,13 +397,22 @@ function Header({ subtitle, org, onEditOrg, onMenuClick }) {
         </div>
       </div>
       <div className="header-right">
+        {visaoExterna ? (
+          <button className="lock-badge lock-locked" onClick={onUnlockClick} title="Clique para liberar edição">
+            <Key size={13} /> Modo visualização
+          </button>
+        ) : (
+          <button className="lock-badge lock-unlocked" onClick={onLock} title="Clique para bloquear edição novamente">
+            <Key size={13} /> Edição liberada
+          </button>
+        )}
         <div className="user">
           <div className="user-avatar">{initialsOf(org.chefeNome)}</div>
           <div>
             <div className="user-name">{org.chefeNome}</div>
             <div className="user-role">{org.chefeCargo}</div>
           </div>
-          <button className="icon-btn" onClick={onEditOrg} title="Editar responsável"><Pencil size={13} /></button>
+          {!visaoExterna && <button className="icon-btn" onClick={onEditOrg} title="Editar responsável"><Pencil size={13} /></button>}
         </div>
       </div>
     </header>
@@ -1045,6 +1054,39 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
   );
 }
 
+function UnlockModal({ onClose, onSubmit }) {
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState(false);
+  const tentar = () => {
+    const ok = onSubmit(senha);
+    if (!ok) { setErro(true); setSenha(""); }
+  };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Liberar edição</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Senha
+            <input
+              type="password"
+              value={senha}
+              onChange={(e) => { setSenha(e.target.value); setErro(false); }}
+              onKeyDown={(e) => e.key === "Enter" && tentar()}
+              autoFocus
+              placeholder="Digite a senha de edição"
+            />
+          </label>
+          {erro && <div className="km-rodado-erro" style={{ marginTop: 4 }}>Senha incorreta. Tente novamente.</div>}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" onClick={tentar} disabled={!senha}>Entrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrgModal({ initial, onClose, onSave }) {
   const [form, setForm] = useState(initial);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -1094,7 +1136,25 @@ function App() {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
-  const visaoExterna = false;
+  const EDIT_PASSWORD = "tropadab4";
+  const [editUnlocked, setEditUnlocked] = useState(() => {
+    try { return localStorage.getItem("b4-edit-unlocked") === "true"; } catch (e) { return false; }
+  });
+  const visaoExterna = !editUnlocked;
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const unlockEdit = (senha) => {
+    if (senha === EDIT_PASSWORD) {
+      setEditUnlocked(true);
+      try { localStorage.setItem("b4-edit-unlocked", "true"); } catch (e) {}
+      setUnlockModalOpen(false);
+      return true;
+    }
+    return false;
+  };
+  const lockEdit = () => {
+    setEditUnlocked(false);
+    try { localStorage.removeItem("b4-edit-unlocked"); } catch (e) {}
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [calMonthOffset, setCalMonthOffset] = useState(0);
 
@@ -1377,7 +1437,7 @@ function App() {
       <div className="app-body">
         <Sidebar tab={tab} setTab={setTab} org={org} onLogoChange={handleLogoChange} visaoExterna={visaoExterna} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onBackup={handleBackup} onRestoreFile={handleRestoreFile} />
         <div className="main-col">
-          <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} />
+          <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} visaoExterna={visaoExterna} onUnlockClick={() => setUnlockModalOpen(true)} onLock={lockEdit} />
           <main className="content">
 
             {tab === "geral" && (
@@ -1885,6 +1945,12 @@ function App() {
           onSave={saveCautelaEquip}
         />
       )}
+      {unlockModalOpen && (
+        <UnlockModal
+          onClose={() => setUnlockModalOpen(false)}
+          onSubmit={unlockEdit}
+        />
+      )}
     </div>
   );
 }
@@ -1928,6 +1994,11 @@ const CSS = `
 .header h1{font-size:22px;margin:0;}
 .header-sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
 .header-right{display:flex;align-items:center;gap:18px;}
+.lock-badge{display:flex;align-items:center;gap:6px;border:none;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.lock-locked{background:#F0EBE0;color:#6B6560;}
+.lock-locked:hover{background:#E7E1D5;}
+.lock-unlocked{background:#E4F2E8;color:#2F7D4F;}
+.lock-unlocked:hover{background:#D3EBDB;}
 .toggle{background:#F1EDE3;border-radius:20px;padding:3px;display:flex;}
 .toggle-btn{border:none;background:none;padding:7px 14px;border-radius:16px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;}
 .toggle-btn.active{background:#1C1917;color:#fff;}
