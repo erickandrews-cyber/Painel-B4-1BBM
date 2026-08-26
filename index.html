@@ -85,6 +85,8 @@ const Key = (p) => <Icon {...p} path={<><circle cx="7.5" cy="15.5" r="5.5" /><pa
 const ClipboardList = (p) => <Icon {...p} path={<><rect x="7" y="2" width="10" height="4" rx="1" /><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="16" y2="15" /><line x1="8" y1="19" x2="12" y2="19" /></>} />;
 const Download = (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>} />;
 const Upload = (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></>} />;
+const ListChecks = (p) => <Icon {...p} path={<><line x1="10" y1="6" x2="21" y2="6" /><line x1="10" y1="12" x2="21" y2="12" /><line x1="10" y1="18" x2="21" y2="18" /><polyline points="3 6 4 7 6 5" /><polyline points="3 12 4 13 6 11" /><polyline points="3 18 4 19 6 17" /></>} />;
+const Receipt = (p) => <Icon {...p} path={<><path d="M4 2h16v20l-3-2-2 2-2-2-2 2-2-2-2 2-3-2Z" /><line x1="8" y1="7" x2="16" y2="7" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="13" y2="15" /></>} />;
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
 const VSTATUS = {
@@ -148,6 +150,9 @@ const SEED_CHAVES_VEICULOS = [];
 const PRIORIDADE_OPCOES = ["Alta", "Média", "Baixa"];
 const SEED_MANUTENCOES = [];
 const SEED_CAUTELAS_EQUIP = [];
+const SEED_DEMANDAS = [];
+const SEED_ORCAMENTOS = [];
+const TIPO_ORCAMENTO_OPCOES = ["Manutenção de viatura", "Manutenção de embarcação", "Material de consumo", "Equipamento", "Serviço"];
 
 const SEED_ESCALAS = [
   { id: "esc1", data: "01/08/2026", militar: "2º Sgt. Ernande", obs: "" },
@@ -362,6 +367,8 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           {item("chaves", "Chaves", Key)}
           {item("manutencao", "Manutenção", Wrench)}
           {item("cautelas", "Cautelas", ClipboardList)}
+          {item("demandas", "Demandas", ListChecks)}
+          {item("orcamentos", "Orçamentos", Receipt)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("alertas", "Alertas", AlertTriangle)}
         </nav>
@@ -477,15 +484,15 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
           <div className="vcard-info-row"><span className="vcard-info-k">Equipada</span><span className="vcard-info-v" style={{ color: v.equipada === "Sim" ? "#2F7D4F" : "#B23B3B" }}>{v.equipada || "Não"}</span></div>
           <div className="vcard-info-row"><span className="vcard-info-k">Chassi</span><span className="vcard-info-v">{v.chassi || "—"}</span></div>
         </div>
-        {!externa && (
-          <div className="vcard-actions internal-only">
-            <button className="btn-ghost" onClick={() => onReport(v)}><AlertTriangle size={13} /> Reportar problema</button>
-            <div className="vcard-icons">
+        <div className="vcard-actions">
+          <button className="btn-ghost" onClick={() => onReport(v)}><AlertTriangle size={13} /> Reportar problema</button>
+          {!externa && (
+            <div className="vcard-icons internal-only">
               <button className="icon-btn" title="Editar viatura" onClick={() => onEdit(v)}><Pencil size={14} /></button>
               <button className="icon-btn icon-danger" title="Excluir viatura" onClick={() => onDelete(v)}><Trash2 size={14} /></button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -994,6 +1001,96 @@ function CautelaEquipModal({ initial, onClose, onSave }) {
   );
 }
 
+/* ---------------- Demandas ---------------- */
+function DemandaModal({ initial, onClose, onSave }) {
+  const [form, setForm] = useState(initial || { titulo: "", descricao: "", prioridade: "Média", responsavel: "" });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar demanda" : "Nova demanda"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Título da demanda<input value={form.titulo} onChange={set("titulo")} placeholder="Ex: Solicitar troca de fechadura do almoxarifado" /></label>
+          <label>Descrição<textarea rows={4} value={form.descricao} onChange={set("descricao")} placeholder="Detalhes do que precisa ser feito" /></label>
+          <label>Prioridade
+            <select value={form.prioridade} onChange={set("prioridade")}>
+              {PRIORIDADE_OPCOES.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label>Responsável (opcional)<input value={form.responsavel} onChange={set("responsavel")} placeholder="Quem vai resolver essa demanda" /></label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!form.titulo} onClick={() => onSave({ ...form, id: form.id || uid(), dataCriacao: form.dataCriacao || new Date().toLocaleDateString("pt-BR") })}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Orçamentos ---------------- */
+function OrcamentoModal({ onClose, onSave }) {
+  const [tipo, setTipo] = useState(TIPO_ORCAMENTO_OPCOES[0]);
+  const [outro, setOutro] = useState(false);
+  const [tipoOutro, setTipoOutro] = useState("");
+  const [remetente, setRemetente] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [valorEstimado, setValorEstimado] = useState("");
+  const [arquivo, setArquivo] = useState(null);
+  const [arquivoNome, setArquivoNome] = useState("");
+  const handleTipoSelect = (e) => {
+    if (e.target.value === "__outro__") setOutro(true);
+    else { setOutro(false); setTipo(e.target.value); }
+  };
+  const setArq = async (file) => {
+    if (file.size > 8 * 1024 * 1024) { alert("Esse arquivo é muito grande (máx. 8 MB)."); return; }
+    try {
+      const dataUrl = file.type.startsWith("image/") ? await fileToCompressedDataUrl(file, 1400, 0.8) : await fileToRawDataUrl(file);
+      setArquivo(dataUrl); setArquivoNome(file.name);
+    } catch (e) { alert("Não foi possível processar esse arquivo."); }
+  };
+  const tipoFinal = outro ? tipoOutro : tipo;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Enviar orçamento</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Tipo de problema / orçamento
+            <select value={outro ? "__outro__" : tipo} onChange={handleTipoSelect}>
+              {TIPO_ORCAMENTO_OPCOES.map((t) => <option key={t} value={t}>{t}</option>)}
+              <option value="__outro__">Outro (digitar)</option>
+            </select>
+          </label>
+          {outro && <label>Digite o tipo<input value={tipoOutro} onChange={(e) => setTipoOutro(e.target.value)} placeholder="Ex: Reforma da sede" /></label>}
+          <label>Nome de quem está enviando<input value={remetente} onChange={(e) => setRemetente(e.target.value)} placeholder="Nome de guerra" /></label>
+          <label>Descrição do orçamento<textarea rows={3} value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="O que é, de qual fornecedor, etc." /></label>
+          <label>Valor estimado (opcional)<input value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} placeholder="Ex: R$ 1.250,00" /></label>
+          <label>Anexo — foto ou PDF do orçamento
+            {arquivo && <div className="doc-attached"><Receipt size={14} /> {arquivoNome}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <label className="btn-secondary sm" style={{ cursor: "pointer" }}>
+                {arquivo ? "Trocar arquivo" : "Anexar orçamento (foto ou PDF)"}
+                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => e.target.files[0] && setArq(e.target.files[0])} />
+              </label>
+              {arquivo && <button type="button" className="btn-secondary sm" onClick={() => { setArquivo(null); setArquivoNome(""); }}>Remover</button>}
+            </div>
+          </label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn-primary"
+            disabled={!remetente || !tipoFinal || !arquivo}
+            onClick={() => onSave({ id: uid(), tipo: tipoFinal, remetente, descricao, valorEstimado, arquivo, arquivoNome, data: new Date().toLocaleDateString("pt-BR"), status: "pendente", dataProcessado: null })}
+          >
+            Enviar orçamento
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EscalaModal({ initial, defaultDate, onClose, onSave }) {
   const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
   const initialMilitar = initial?.militar || "";
@@ -1115,10 +1212,12 @@ function App() {
   const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
   const [manutencoes, saveManutencoes, readyManut] = useShared("b4-manutencoes", SEED_MANUTENCOES);
   const [cautelasEquip, saveCautelasEquip, readyCautelasEquip] = useShared("b4-cautelas-equip", SEED_CAUTELAS_EQUIP);
+  const [demandas, saveDemandas, readyDemandas] = useShared("b4-demandas", SEED_DEMANDAS);
+  const [orcamentos, saveOrcamentos, readyOrcamentos] = useShared("b4-orcamentos", SEED_ORCAMENTOS);
   const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "escalas", "alertas"];
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "alertas"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) ? h : "geral";
@@ -1183,9 +1282,16 @@ function App() {
   const [editingCautelaEquip, setEditingCautelaEquip] = useState(null);
   const [cautelaEquipModalOpen, setCautelaEquipModalOpen] = useState(false);
   const [mostrarDevolvidas, setMostrarDevolvidas] = useState(false);
+  const [editingDemanda, setEditingDemanda] = useState(null);
+  const [demandaModalOpen, setDemandaModalOpen] = useState(false);
+  const [mostrarDemandasConcluidas, setMostrarDemandasConcluidas] = useState(false);
+  const [demandaBusca, setDemandaBusca] = useState("");
+  const [orcamentoModalOpen, setOrcamentoModalOpen] = useState(false);
+  const [mostrarOrcamentosProcessados, setMostrarOrcamentosProcessados] = useState(false);
+  const [orcamentoBusca, setOrcamentoBusca] = useState("");
   const [cautelaBusca, setCautelaBusca] = useState("");
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados && readyDemandas && readyOrcamentos;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -1236,7 +1342,7 @@ function App() {
     const payload = {
       geradoEm: new Date().toISOString(),
       painel: "Controle de Viaturas — B/4 — 1º BBM",
-      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados },
+      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados, demandas, orcamentos },
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1270,6 +1376,8 @@ function App() {
         if (d.manutencoes) saveManutencoes(d.manutencoes);
         if (d.cautelasEquip) saveCautelasEquip(d.cautelasEquip);
         if (d.alertasDispensados) saveAlertasDispensados(d.alertasDispensados);
+        if (d.demandas) saveDemandas(d.demandas);
+        if (d.orcamentos) saveOrcamentos(d.orcamentos);
         alert("Backup restaurado com sucesso!");
       });
     };
@@ -1375,6 +1483,39 @@ function App() {
     return c.equipamentoNome.toLowerCase().includes(busca) || c.militar.toLowerCase().includes(busca);
   });
 
+  /* ---- demandas ---- */
+  const saveDemanda = (form) => {
+    const exists = demandas.some((x) => x.id === form.id);
+    saveDemandas(exists ? demandas.map((x) => (x.id === form.id ? form : x)) : [form, ...demandas]);
+    setDemandaModalOpen(false); setEditingDemanda(null);
+  };
+  const deleteDemanda = (d) => askConfirm(`Excluir a demanda "${d.titulo}"?`, () => saveDemandas(demandas.filter((x) => x.id !== d.id)));
+  const concluirDemanda = (d) => askConfirm(`Marcar "${d.titulo}" como concluída?`, () => {
+    saveDemandas(demandas.map((x) => (x.id === d.id ? { ...x, dataConclusao: new Date().toLocaleDateString("pt-BR") } : x)));
+  });
+  const demandasAtivas = demandas.filter((d) => !d.dataConclusao);
+  const demandasAltaPrioridade = demandasAtivas.filter((d) => d.prioridade === "Alta");
+  const demandasOrdenadas = [...(mostrarDemandasConcluidas ? demandas : demandasAtivas)]
+    .filter((d) => {
+      const busca = demandaBusca.trim().toLowerCase();
+      if (!busca) return true;
+      return d.titulo.toLowerCase().includes(busca) || (d.responsavel || "").toLowerCase().includes(busca);
+    })
+    .sort((a, b) => (PRIORIDADE_ORDEM[a.prioridade || "Média"] ?? 1) - (PRIORIDADE_ORDEM[b.prioridade || "Média"] ?? 1));
+
+  /* ---- orçamentos ---- */
+  const submitOrcamento = (o) => { saveOrcamentos([o, ...orcamentos]); setOrcamentoModalOpen(false); };
+  const deleteOrcamento = (o) => askConfirm(`Excluir o orçamento de "${o.tipo}" enviado por ${o.remetente}?`, () => saveOrcamentos(orcamentos.filter((x) => x.id !== o.id)));
+  const processarOrcamento = (o) => askConfirm(`Marcar esse orçamento como anexado ao ofício? O arquivo será removido da nuvem para liberar espaço — baixe antes se ainda não baixou.`, () => {
+    saveOrcamentos(orcamentos.map((x) => (x.id === o.id ? { ...x, status: "processado", dataProcessado: new Date().toLocaleDateString("pt-BR"), arquivo: null } : x)));
+  });
+  const orcamentosPendentes = orcamentos.filter((o) => o.status !== "processado");
+  const orcamentosVisiveis = (mostrarOrcamentosProcessados ? orcamentos : orcamentosPendentes).filter((o) => {
+    const busca = orcamentoBusca.trim().toLowerCase();
+    if (!busca) return true;
+    return o.tipo.toLowerCase().includes(busca) || o.remetente.toLowerCase().includes(busca);
+  });
+
   const today = new Date();
   const calDate = new Date(today.getFullYear(), today.getMonth() + calMonthOffset, 1);
   const calYear = calDate.getFullYear(), calMonth = calDate.getMonth();
@@ -1426,6 +1567,8 @@ function App() {
     chaves: "Controle de Viaturas e Embarcações",
     manutencao: "Controle de Viaturas e Embarcações",
     cautelas: "Controle de Viaturas e Embarcações",
+    demandas: "Controle de Viaturas e Embarcações",
+    orcamentos: "Controle de Viaturas e Embarcações",
     escalas: "Controle de Viaturas e Embarcações",
     alertas: "Controle de Viaturas e Embarcações",
   };
@@ -1726,6 +1869,106 @@ function App() {
               </>
             )}
 
+            {tab === "demandas" && (
+              <>
+                <div className="section-head">
+                  <h2>Demandas</h2>
+                  {!visaoExterna && <button className="btn-primary sm internal-only" onClick={() => { setEditingDemanda(null); setDemandaModalOpen(true); }}><Plus size={14} /> Nova demanda</button>}
+                </div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Demandas do dia a dia do setor, não necessariamente ligadas às viaturas</div>
+
+                <div className="ov-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", marginBottom: 16 }}>
+                  <div className="stat-card"><div className="stat-num" style={{ color: demandasAtivas.length ? "#C15A1B" : "#2F7D4F" }}>{demandasAtivas.length}</div><div className="stat-label">demandas em aberto</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{ color: demandasAltaPrioridade.length ? "#B23B3B" : "#2F7D4F" }}>{demandasAltaPrioridade.length}</div><div className="stat-label">de prioridade Alta</div></div>
+                </div>
+
+                <div className="chaves-filtros">
+                  <input className="chaves-filtro-input" value={demandaBusca} onChange={(e) => setDemandaBusca(e.target.value)} placeholder="Buscar por título ou responsável..." />
+                  <button className="btn-secondary sm" onClick={() => setMostrarDemandasConcluidas((v) => !v)}>
+                    {mostrarDemandasConcluidas ? "Ocultar concluídas" : "Mostrar concluídas"}
+                  </button>
+                </div>
+
+                <div className="panel">
+                  {demandasOrdenadas.length === 0 && <div className="empty">Nenhuma demanda encontrada.</div>}
+                  {demandasOrdenadas.map((d) => {
+                    const sev = prioridadeSev(d.prioridade || "Média");
+                    return (
+                      <div className="alert-row" key={d.id} style={{ borderLeftColor: sev.fg }}>
+                        <div>
+                          <div className="alert-title">{d.titulo} <span className="pill" style={{ background: sev.bg, color: sev.fg, marginLeft: 6 }}>{d.prioridade || "Média"}</span></div>
+                          <div className="alert-sub">
+                            {d.responsavel ? `${d.responsavel} · ` : ""}Criada em {d.dataCriacao}
+                            {d.dataConclusao ? ` · Concluída em ${d.dataConclusao}` : ""}
+                          </div>
+                          {d.descricao && <div className="alert-desc">{d.descricao}</div>}
+                        </div>
+                        {!visaoExterna && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {!d.dataConclusao && <button className="btn-secondary sm" onClick={() => concluirDemanda(d)}>Concluir</button>}
+                            <button className="icon-btn" title="Editar" onClick={() => { setEditingDemanda(d); setDemandaModalOpen(true); }}><Pencil size={14} /></button>
+                            <button className="icon-btn icon-danger" title="Excluir" onClick={() => deleteDemanda(d)}><Trash2 size={14} /></button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {tab === "orcamentos" && (
+              <>
+                <div className="section-head">
+                  <h2>Orçamentos</h2>
+                  <button className="btn-primary sm" onClick={() => setOrcamentoModalOpen(true)}><Plus size={14} /> Enviar orçamento</button>
+                </div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Orçamentos enviados para viaturas, materiais, equipamentos ou outras necessidades do setor</div>
+
+                <div className="ov-grid" style={{ gridTemplateColumns: "repeat(2,1fr)", marginBottom: 16 }}>
+                  <div className="stat-card"><div className="stat-num" style={{ color: orcamentosPendentes.length ? "#C15A1B" : "#2F7D4F" }}>{orcamentosPendentes.length}</div><div className="stat-label">pendentes de análise</div></div>
+                  <div className="stat-card"><div className="stat-num">{orcamentos.length}</div><div className="stat-label">recebidos ao todo</div></div>
+                </div>
+
+                <div className="chaves-filtros">
+                  <input className="chaves-filtro-input" value={orcamentoBusca} onChange={(e) => setOrcamentoBusca(e.target.value)} placeholder="Buscar por tipo ou remetente..." />
+                  {!visaoExterna && (
+                    <button className="btn-secondary sm" onClick={() => setMostrarOrcamentosProcessados((v) => !v)}>
+                      {mostrarOrcamentosProcessados ? "Ocultar anexados" : "Mostrar anexados"}
+                    </button>
+                  )}
+                </div>
+
+                <div className="panel">
+                  {orcamentosVisiveis.length === 0 && <div className="empty">Nenhum orçamento encontrado.</div>}
+                  {orcamentosVisiveis.map((o) => (
+                    <div className="alert-row" key={o.id} style={{ borderLeftColor: o.status === "processado" ? "#2F7D4F" : "#B0791A" }}>
+                      <div>
+                        <div className="alert-title">{o.tipo} <span className="pill" style={{ background: o.status === "processado" ? "#E4F2E8" : "#FBF0DC", color: o.status === "processado" ? "#2F7D4F" : "#B0791A", marginLeft: 6 }}>{o.status === "processado" ? "Anexado ao ofício" : "Pendente"}</span></div>
+                        <div className="alert-sub">
+                          {o.remetente} · {o.data}{o.valorEstimado ? ` · Valor estimado: ${o.valorEstimado}` : ""}
+                          {o.dataProcessado ? ` · Processado em ${o.dataProcessado}` : ""}
+                        </div>
+                        {o.descricao && <div className="alert-desc">{o.descricao}</div>}
+                        {o.arquivo && (
+                          <div className="doc-downloads">
+                            <button className="link-btn sm" onClick={() => downloadDataUrl(o.arquivo, o.arquivoNome || `orcamento-${o.tipo}.pdf`)}><Download size={12} /> Baixar orçamento</button>
+                          </div>
+                        )}
+                        {!o.arquivo && o.status === "processado" && <div className="muted-sm" style={{ marginTop: 4 }}>Arquivo já removido da nuvem (anexado ao ofício)</div>}
+                      </div>
+                      {!visaoExterna && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {o.status !== "processado" && <button className="btn-secondary sm" onClick={() => processarOrcamento(o)}>Marcar anexado</button>}
+                          <button className="icon-btn icon-danger" title="Excluir" onClick={() => deleteOrcamento(o)}><Trash2 size={14} /></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             {tab === "escalas" && (
               <>
                 <h2 className="page-title">Escalas</h2>
@@ -1949,6 +2192,19 @@ function App() {
         <UnlockModal
           onClose={() => setUnlockModalOpen(false)}
           onSubmit={unlockEdit}
+        />
+      )}
+      {demandaModalOpen && (
+        <DemandaModal
+          initial={editingDemanda}
+          onClose={() => { setDemandaModalOpen(false); setEditingDemanda(null); }}
+          onSave={saveDemanda}
+        />
+      )}
+      {orcamentoModalOpen && (
+        <OrcamentoModal
+          onClose={() => setOrcamentoModalOpen(false)}
+          onSave={submitOrcamento}
         />
       )}
     </div>
