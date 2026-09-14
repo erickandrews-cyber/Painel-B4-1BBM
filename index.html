@@ -153,6 +153,16 @@ const SEED_CAUTELAS_EQUIP = [];
 const SEED_DEMANDAS = [];
 const SEED_ORCAMENTOS = [];
 const TIPO_ORCAMENTO_OPCOES = ["Manutenção de viatura", "Manutenção de embarcação", "Material de consumo", "Equipamento", "Serviço"];
+const EXPEDIENTE_STATUS_OPCOES = ["Serviço Operacional", "Expediente", "Almoxarifado do dia", "Folga", "Férias", "Licença"];
+const EXPEDIENTE_STATUS_COR = {
+  "Serviço Operacional": { fg: "#B23B3B", bg: "#FBE3E3" },
+  "Expediente": { fg: "#2F6FB2", bg: "#E3EDFB" },
+  "Almoxarifado do dia": { fg: "#B0791A", bg: "#FBF0DC" },
+  "Folga": { fg: "#2F7D4F", bg: "#E4F2E8" },
+  "Férias": { fg: "#7A4FA3", bg: "#F1E6F8" },
+  "Licença": { fg: "#6B6560", bg: "#F0EBE0" },
+};
+const SEED_EXPEDIENTE = [];
 
 const SEED_ESCALAS = [
   { id: "esc1", data: "01/08/2026", militar: "2º Sgt. Ernande", obs: "" },
@@ -1130,6 +1140,48 @@ function EscalaModal({ initial, defaultDate, onClose, onSave }) {
   );
 }
 
+function ExpedienteModal({ initial, defaultDate, onClose, onSave }) {
+  const isKnown = (nome) => MILITARES.some((m) => m.nome === nome);
+  const initialMilitar = initial?.militar || "";
+  const initialOutro = !!initialMilitar && !isKnown(initialMilitar);
+  const [form, setForm] = useState(initial || { data: defaultDate || "", militar: "", status: EXPEDIENTE_STATUS_OPCOES[0], obs: "" });
+  const [outro, setOutro] = useState(initialOutro);
+  const [customName, setCustomName] = useState(initialOutro ? initialMilitar : "");
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const handleSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutro(true); setForm({ ...form, militar: customName }); }
+    else { setOutro(false); setForm({ ...form, militar: e.target.value }); }
+  };
+  const handleCustomName = (e) => { setCustomName(e.target.value); setForm({ ...form, militar: e.target.value }); };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar expediente" : "Lançar expediente"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Data<input value={form.data} onChange={set("data")} placeholder="dd/mm/aaaa" /></label>
+          <label>Militar
+            <select value={outro ? "__outro__" : form.militar} onChange={handleSelect}>
+              <option value="">Selecione...</option>
+              {MILITARES.map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+              <option value="__outro__">Outro (digitar nome)</option>
+            </select>
+          </label>
+          {outro && (
+            <label>Nome do militar<input value={customName} onChange={handleCustomName} placeholder="Graduação e nome" /></label>
+          )}
+          <label>Situação do dia
+            <select value={form.status} onChange={set("status")}>
+              {EXPEDIENTE_STATUS_OPCOES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label>Observação (opcional)<textarea rows={2} value={form.obs} onChange={set("obs")} placeholder="Detalhes adicionais" /></label>
+        </div>
+        <div className="modal-foot"><button className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={() => onSave({ ...form, id: form.id || uid() })} disabled={!form.data || !form.militar}>Salvar</button></div>
+      </div>
+    </div>
+  );
+}
+
 function PhotoLightbox({ src, onClose }) {
   return (
     <div className="lightbox-back" onClick={onClose}>
@@ -1208,6 +1260,7 @@ function App() {
   const [embarcacoes, saveEmbarcacoes, readyE] = useShared("b4-embarcacoes-real", SEED_EMBARCACOES, (list) => fillMissingPhotos(normalizeVehicleList(list), SEED_EMBARCACOES));
   const [problemas, saveProblemas, readyP] = useShared("b4-problemas", []);
   const [escalas, saveEscalas, readyEsc] = useShared("b4-escalas-ago2026", SEED_ESCALAS);
+  const [expediente, saveExpediente, readyExpediente] = useShared("b4-expediente", SEED_EXPEDIENTE);
   const [chavesLog, saveChavesLog, readyChaves] = useShared("b4-chaves", SEED_CHAVES_LOG);
   const [chavesVeiculos, saveChavesVeiculos, readyChavesV] = useShared("b4-chaves-veiculos", SEED_CHAVES_VEICULOS);
   const [manutencoes, saveManutencoes, readyManut] = useShared("b4-manutencoes", SEED_MANUTENCOES);
@@ -1264,6 +1317,10 @@ function App() {
   const [editingEscala, setEditingEscala] = useState(null);
   const [editingEscalaOpen, setEditingEscalaOpen] = useState(false);
   const [escalaDefaultDate, setEscalaDefaultDate] = useState("");
+  const [escalasSubTab, setEscalasSubTab] = useState("servico");
+  const [editingExpediente, setEditingExpediente] = useState(null);
+  const [editingExpedienteOpen, setEditingExpedienteOpen] = useState(false);
+  const [expedienteDefaultDate, setExpedienteDefaultDate] = useState("");
   const [editingOrgOpen, setEditingOrgOpen] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState(null);
   const askConfirm = (message, onYes) => setPendingConfirm({ message, onYes });
@@ -1291,7 +1348,7 @@ function App() {
   const [orcamentoBusca, setOrcamentoBusca] = useState("");
   const [cautelaBusca, setCautelaBusca] = useState("");
 
-  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados && readyDemandas && readyOrcamentos;
+  const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados && readyDemandas && readyOrcamentos && readyExpediente;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
 
   /* ---- viaturas / embarcações ---- */
@@ -1342,7 +1399,7 @@ function App() {
     const payload = {
       geradoEm: new Date().toISOString(),
       painel: "Controle de Viaturas — B/4 — 1º BBM",
-      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados, demandas, orcamentos },
+      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados, demandas, orcamentos, expediente },
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1378,6 +1435,7 @@ function App() {
         if (d.alertasDispensados) saveAlertasDispensados(d.alertasDispensados);
         if (d.demandas) saveDemandas(d.demandas);
         if (d.orcamentos) saveOrcamentos(d.orcamentos);
+        if (d.expediente) saveExpediente(d.expediente);
         alert("Backup restaurado com sucesso!");
       });
     };
@@ -1391,6 +1449,13 @@ function App() {
     setEditingEscalaOpen(false); setEditingEscala(null);
   };
   const deleteEscala = (e) => { askConfirm(`Remover escala de ${e.data}?`, () => saveEscalas(escalas.filter((x) => x.id !== e.id))); };
+
+  const saveExpedienteEntry = (form) => {
+    const exists = expediente.some((x) => x.id === form.id);
+    saveExpediente(exists ? expediente.map((x) => (x.id === form.id ? form : x)) : [...expediente, form]);
+    setEditingExpedienteOpen(false); setEditingExpediente(null);
+  };
+  const deleteExpediente = (e) => { askConfirm(`Remover expediente de ${e.militar} em ${e.data}?`, () => saveExpediente(expediente.filter((x) => x.id !== e.id))); };
 
   /* ---- chaves ---- */
   const findVeiculoById = (id) => viaturas.find((v) => v.id === id) || embarcacoes.find((v) => v.id === id);
@@ -1529,6 +1594,12 @@ function App() {
   const responsavelHojeEsc = escalaByDate[`${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`];
   const responsavelHojeInfo = responsavelHojeEsc ? MILITARES.find((m) => m.nome === responsavelHojeEsc.militar) : null;
   const monthEscalas = escalas.filter((e) => { const dt = parseBRDate(e.data); return dt && dt.getFullYear() === calYear && dt.getMonth() === calMonth; }).sort((a, b) => parseBRDate(a.data) - parseBRDate(b.data));
+
+  const expedienteByDate = {};
+  expediente.forEach((e) => { (expedienteByDate[e.data] = expedienteByDate[e.data] || []).push(e); });
+  const hojeStr = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+  const expedienteHoje = (expedienteByDate[hojeStr] || []);
+  const monthExpediente = expediente.filter((e) => { const dt = parseBRDate(e.data); return dt && dt.getFullYear() === calYear && dt.getMonth() === calMonth; }).sort((a, b) => parseBRDate(a.data) - parseBRDate(b.data) || a.militar.localeCompare(b.militar));
 
   /* ---- overview cards ---- */
   const manutCriticaCount = allVehicles.filter((v) => v.status === "manutencao").length;
@@ -1972,8 +2043,15 @@ function App() {
             {tab === "escalas" && (
               <>
                 <h2 className="page-title">Escalas</h2>
-                <div className="muted-sm" style={{ marginBottom: 14 }}>Responsável diário · {MONTHS[calMonth]}/{calYear}</div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>{escalasSubTab === "servico" ? "Responsável diário" : "Efetivo do expediente"} · {MONTHS[calMonth]}/{calYear}</div>
 
+                <div className="toggle" style={{ marginBottom: 16 }}>
+                  <button className={escalasSubTab === "servico" ? "toggle-btn active" : "toggle-btn"} onClick={() => setEscalasSubTab("servico")}>Escala de Serviço</button>
+                  <button className={escalasSubTab === "expediente" ? "toggle-btn active" : "toggle-btn"} onClick={() => setEscalasSubTab("expediente")}>Expediente</button>
+                </div>
+
+                {escalasSubTab === "servico" && (
+                <>
                 <div className="today-card">
                   <div className="today-label">RESPONSÁVEL DE HOJE</div>
                   {responsavelHojeEsc ? (
@@ -2044,6 +2122,92 @@ function App() {
                     })}
                   </div>
                 </div>
+                </>
+                )}
+
+                {escalasSubTab === "expediente" && (
+                <>
+                <div className="today-card">
+                  <div className="today-label">EXPEDIENTE DE HOJE</div>
+                  {expedienteHoje.length === 0 && <div className="empty" style={{ color: "#C9C2B4" }}>Nenhum lançamento de expediente para hoje.</div>}
+                  {expedienteHoje.map((e) => {
+                    const cor = EXPEDIENTE_STATUS_COR[e.status] || EXPEDIENTE_STATUS_COR["Expediente"];
+                    return (
+                      <div className="today-row" key={e.id} style={{ marginBottom: 8 }}>
+                        <div className="today-avatar">{militarCodigo(e.militar)}</div>
+                        <div>
+                          <div className="today-name">{e.militar}</div>
+                          <div className="today-sub"><span className="pill" style={{ background: cor.bg, color: cor.fg }}>{e.status}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="section-head" style={{ marginTop: 18 }}>
+                  <div className="cal-nav">
+                    <button className="icon-btn" onClick={() => setCalMonthOffset((o) => o - 1)}><ChevronLeft size={16} /></button>
+                    <h2 style={{ minWidth: 170, textAlign: "center", margin: 0 }}>{MONTHS[calMonth]} {calYear}</h2>
+                    <button className="icon-btn" onClick={() => setCalMonthOffset((o) => o + 1)}><ChevronRight size={16} /></button>
+                  </div>
+                  {!visaoExterna && <button className="btn-primary sm internal-only" onClick={() => { setExpedienteDefaultDate(""); setEditingExpediente(null); setEditingExpedienteOpen(true); }}><Plus size={14} /> Lançar expediente</button>}
+                </div>
+
+                <div className="legend-row">
+                  {EXPEDIENTE_STATUS_OPCOES.map((s) => (
+                    <span key={s} className="legend-item"><i className="ov-dot" style={{ background: EXPEDIENTE_STATUS_COR[s].fg }} />{s}</span>
+                  ))}
+                </div>
+
+                <div className="panel">
+                  <div className="cal-weekdays">{WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}</div>
+                  <div className="cal-grid">
+                    {cells.map((d, idx) => {
+                      if (!d) return <div key={idx} className="cal-cell empty-cell" />;
+                      const dateStr = `${String(d).padStart(2, "0")}/${String(calMonth + 1).padStart(2, "0")}/${calYear}`;
+                      const entradas = expedienteByDate[dateStr] || [];
+                      const cellDate = new Date(calYear, calMonth, d);
+                      const isToday = sameDate(cellDate, today);
+                      return (
+                        <div key={idx} className={`cal-cell ${isToday ? "is-today" : ""}`}
+                          onClick={() => !visaoExterna && (() => { setEditingExpediente(null); setExpedienteDefaultDate(dateStr); setEditingExpedienteOpen(true); })()}>
+                          <div className="cal-daynum">{d}</div>
+                          <div className="cal-expediente-tags">
+                            {entradas.map((e) => {
+                              const cor = EXPEDIENTE_STATUS_COR[e.status] || EXPEDIENTE_STATUS_COR["Expediente"];
+                              return <span key={e.id} className="cal-tag" style={{ background: cor.bg, color: cor.fg }}>{militarCodigo(e.militar)}</span>;
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="panel" style={{ marginTop: 14 }}>
+                  <h3 style={{ marginTop: 0 }}>Expediente completo do mês</h3>
+                  <div className="table-panel">
+                    <div className="table-head esc-head"><div>Data</div><div>Militar</div><div>Situação</div></div>
+                    {monthExpediente.map((e) => {
+                      const cor = EXPEDIENTE_STATUS_COR[e.status] || EXPEDIENTE_STATUS_COR["Expediente"];
+                      return (
+                        <div className="table-row esc-row" key={e.id} style={{ borderLeftColor: "transparent", gridTemplateColumns: visaoExterna ? "0.6fr 1.4fr 1fr" : "0.6fr 1.2fr 1fr 60px" }}>
+                          <div className="muted-sm">{e.data.slice(0, 5)}</div>
+                          <div className="tbold">{e.militar}</div>
+                          <div><span className="pill" style={{ background: cor.bg, color: cor.fg }}>{e.status}</span>{e.obs ? <span className="muted-sm"> · {e.obs}</span> : null}</div>
+                          {!visaoExterna && (
+                            <div className="table-actions internal-only">
+                              <button className="icon-btn" onClick={() => { setEditingExpediente(e); setExpedienteDefaultDate(""); setEditingExpedienteOpen(true); }}><Pencil size={14} /></button>
+                              <button className="icon-btn icon-danger" onClick={() => deleteExpediente(e)}><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                </>
+                )}
               </>
             )}
 
@@ -2144,6 +2308,7 @@ function App() {
         />
       )}
       {editingEscalaOpen && <EscalaModal initial={editingEscala} defaultDate={escalaDefaultDate} onClose={() => { setEditingEscalaOpen(false); setEditingEscala(null); }} onSave={saveEscala} />}
+      {editingExpedienteOpen && <ExpedienteModal initial={editingExpediente} defaultDate={expedienteDefaultDate} onClose={() => { setEditingExpedienteOpen(false); setEditingExpediente(null); }} onSave={saveExpedienteEntry} />}
       {editingOrgOpen && <OrgModal initial={org} onClose={() => setEditingOrgOpen(false)} onSave={(form) => { saveOrg(form); setEditingOrgOpen(false); }} />}
       {pendingConfirm && (
         <ConfirmModal
@@ -2376,6 +2541,10 @@ const CSS = `
 .cal-cell.is-pending{background:#FBF0DC;border-style:dashed;}
 .cal-daynum{font-size:11px;font-weight:700;}
 .cal-code{font-size:10px;font-weight:700;letter-spacing:.02em;}
+.cal-expediente-tags{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
+.cal-tag{font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:4px;line-height:1.4;}
+.legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);}
 .cal-pending{font-size:9px;font-weight:700;color:#B0791A;text-transform:uppercase;}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;}
 .stat-num{font-size:28px;font-weight:700;font-family:Georgia,serif;}
