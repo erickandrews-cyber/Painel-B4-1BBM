@@ -1443,12 +1443,36 @@ function App() {
   };
 
   /* ---- escalas ---- */
+  /* Sincronização: toda escala de Almoxarifado do Dia reflete automaticamente no Expediente do mesmo militar/dia */
+  const upsertExpedienteSincronizado = (data, militar, listaAtual) => {
+    const existente = listaAtual.find((x) => x.data === data && x.militar === militar);
+    if (existente) return listaAtual.map((x) => (x === existente ? { ...x, status: "Almoxarifado do dia" } : x));
+    return [...listaAtual, { id: uid(), data, militar, status: "Almoxarifado do dia", obs: "" }];
+  };
+  const removeExpedienteSincronizado = (data, militar, listaAtual) => {
+    return listaAtual.filter((x) => !(x.data === data && x.militar === militar && x.status === "Almoxarifado do dia"));
+  };
+
   const saveEscala = (form) => {
+    const anterior = escalas.find((x) => x.id === form.id);
     const exists = escalas.some((x) => x.id === form.id);
     saveEscalas(exists ? escalas.map((x) => (x.id === form.id ? form : x)) : [...escalas, form]);
+
+    let listaExpediente = expediente;
+    if (anterior && (anterior.data !== form.data || anterior.militar !== form.militar)) {
+      listaExpediente = removeExpedienteSincronizado(anterior.data, anterior.militar, listaExpediente);
+    }
+    listaExpediente = upsertExpedienteSincronizado(form.data, form.militar, listaExpediente);
+    saveExpediente(listaExpediente);
+
     setEditingEscalaOpen(false); setEditingEscala(null);
   };
-  const deleteEscala = (e) => { askConfirm(`Remover escala de ${e.data}?`, () => saveEscalas(escalas.filter((x) => x.id !== e.id))); };
+  const deleteEscala = (e) => {
+    askConfirm(`Remover escala de ${e.data}? Isso também remove o lançamento correspondente no Expediente.`, () => {
+      saveEscalas(escalas.filter((x) => x.id !== e.id));
+      saveExpediente(removeExpedienteSincronizado(e.data, e.militar, expediente));
+    });
+  };
 
   const saveExpedienteEntry = (form) => {
     const exists = expediente.some((x) => x.id === form.id);
@@ -2043,17 +2067,17 @@ function App() {
             {tab === "escalas" && (
               <>
                 <h2 className="page-title">Escalas</h2>
-                <div className="muted-sm" style={{ marginBottom: 14 }}>{escalasSubTab === "servico" ? "Responsável diário" : "Efetivo do expediente"} · {MONTHS[calMonth]}/{calYear}</div>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>{escalasSubTab === "servico" ? "Responsável pelo almoxarifado do dia" : "Efetivo do expediente"} · {MONTHS[calMonth]}/{calYear}</div>
 
                 <div className="toggle" style={{ marginBottom: 16 }}>
-                  <button className={escalasSubTab === "servico" ? "toggle-btn active" : "toggle-btn"} onClick={() => setEscalasSubTab("servico")}>Escala de Serviço</button>
+                  <button className={escalasSubTab === "servico" ? "toggle-btn active" : "toggle-btn"} onClick={() => setEscalasSubTab("servico")}>Almoxarifado do Dia</button>
                   <button className={escalasSubTab === "expediente" ? "toggle-btn active" : "toggle-btn"} onClick={() => setEscalasSubTab("expediente")}>Expediente</button>
                 </div>
 
                 {escalasSubTab === "servico" && (
                 <>
                 <div className="today-card">
-                  <div className="today-label">RESPONSÁVEL DE HOJE</div>
+                  <div className="today-label">ALMOXARIFADO DO DIA — HOJE</div>
                   {responsavelHojeEsc ? (
                     <div className="today-row">
                       <div className="today-avatar">{militarCodigo(responsavelHojeEsc.militar)}</div>
