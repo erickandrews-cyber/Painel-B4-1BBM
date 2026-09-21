@@ -48,45 +48,160 @@
 <script type="text/plain" id="app-source">
 const { useState, useEffect } = React;
 
-/* ---------------- Ícones (SVG próprios, sem depender de biblioteca externa) ---------------- */
-function Icon({ path, size = 16, strokeWidth = 2, className, style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
-      className={className} style={style}>
-      {path}
-    </svg>
+function IconBase({ size = 16, children, style, ...rest }) {
+  return React.createElement(
+    "svg",
+    {
+      width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+      stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round",
+      style: { flexShrink: 0, ...style }, ...rest
+    },
+    children
   );
 }
-const Plus = (p) => <Icon {...p} path={<><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>} />;
-const X = (p) => <Icon {...p} path={<><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>} />;
-const ChevronRight = (p) => <Icon {...p} path={<polyline points="9 6 15 12 9 18" />} />;
-const ChevronLeft = (p) => <Icon {...p} path={<polyline points="15 6 9 12 15 18" />} />;
-const ChevronDown = (p) => <Icon {...p} path={<polyline points="6 9 12 15 18 9" />} />;
-const CheckCircle2 = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" /></>} />;
-const Pencil = (p) => <Icon {...p} path={<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></>} />;
-const Trash2 = (p) => <Icon {...p} path={<><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></>} />;
-const AlertTriangle = (p) => <Icon {...p} path={<><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>} />;
-const Camera = (p) => <Icon {...p} path={<><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>} />;
-const Shield = (p) => <Icon {...p} path={<path d="M12 2 3 7v6c0 5 4 9 9 11 5-2 9-6 9-11V7l-9-5z" />} />;
-const Truck = (p) => <Icon {...p} path={<><rect x="1" y="7" width="14" height="10" rx="1" /><path d="M15 10h4l3 3v4h-7z" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="19" r="2" /></>} />;
-const Anchor = (p) => <Icon {...p} path={<><circle cx="12" cy="5" r="2" /><line x1="12" y1="7" x2="12" y2="21" /><path d="M5 12H2a10 10 0 0 0 20 0h-3" /></>} />;
-const Gauge = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="9" /><line x1="12" y1="12" x2="15.5" y2="9" /><line x1="12" y1="7" x2="12" y2="7.5" /></>} />;
-const Home = (p) => <Icon {...p} path={<><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9" /></>} />;
-const LayoutGrid = (p) => <Icon {...p} path={<><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></>} />;
-const ImageOff = (p) => <Icon {...p} path={<><line x1="2" y1="2" x2="22" y2="22" /><path d="M10.41 5H20a1 1 0 0 1 1 1v9.59" /><path d="M4 4.27A1 1 0 0 0 3 5v14a1 1 0 0 0 1 1h14c.35 0 .68-.14.93-.37" /><circle cx="9" cy="9" r="2" /></>} />;
-const Menu = (p) => <Icon {...p} path={<><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>} />;
-const CalendarDays = (p) => <Icon {...p} path={<><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>} />;
-const User = (p) => <Icon {...p} path={<><path d="M20 21a8 8 0 1 0-16 0" /><circle cx="12" cy="7" r="4" /></>} />;
-const Phone = (p) => <Icon {...p} path={<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />} />;
-const Wrench = (p) => <Icon {...p} path={<path d="M14.7 6.3a5 5 0 0 0-6.9 6.9L2 19l3 3 5.8-5.8a5 5 0 0 0 6.9-6.9L14 13l-3-3z" />} />;
-const ShieldAlert = (p) => <Icon {...p} path={<><path d="M12 2 3 7v6c0 5 4 9 9 11 5-2 9-6 9-11V7l-9-5z" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} />;
-const Key = (p) => <Icon {...p} path={<><circle cx="7.5" cy="15.5" r="5.5" /><path d="M21 2l-9.6 9.6" /><path d="M15.5 7.5 19 4" /><path d="M17.5 9.5 21 6" /></>} />;
-const ClipboardList = (p) => <Icon {...p} path={<><rect x="7" y="2" width="10" height="4" rx="1" /><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="16" y2="15" /><line x1="8" y1="19" x2="12" y2="19" /></>} />;
-const Download = (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>} />;
-const Upload = (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></>} />;
-const ListChecks = (p) => <Icon {...p} path={<><line x1="10" y1="6" x2="21" y2="6" /><line x1="10" y1="12" x2="21" y2="12" /><line x1="10" y1="18" x2="21" y2="18" /><polyline points="3 6 4 7 6 5" /><polyline points="3 12 4 13 6 11" /><polyline points="3 18 4 19 6 17" /></>} />;
-const Receipt = (p) => <Icon {...p} path={<><path d="M4 2h16v20l-3-2-2 2-2-2-2 2-2-2-2 2-3-2Z" /><line x1="8" y1="7" x2="16" y2="7" /><line x1="8" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="13" y2="15" /></>} />;
+function mkIcon(paths) {
+  return function (props) {
+    return IconBase({ ...props, children: paths.map((p, i) => React.createElement(p.tag, { key: i, ...p.attrs })) });
+  };
+}
+const Truck = mkIcon([
+  { tag: "path", attrs: { d: "M2 8h11v8H2z" } },
+  { tag: "path", attrs: { d: "M13 11h4l3 3v2h-7z" } },
+  { tag: "circle", attrs: { cx: 6.5, cy: 18, r: 1.8 } },
+  { tag: "circle", attrs: { cx: 16.5, cy: 18, r: 1.8 } },
+]);
+const Anchor = mkIcon([
+  { tag: "circle", attrs: { cx: 12, cy: 5, r: 2 } },
+  { tag: "path", attrs: { d: "M12 7v14" } },
+  { tag: "path", attrs: { d: "M5 12H2a10 10 0 0 0 20 0h-3" } },
+  { tag: "path", attrs: { d: "M7 15l5 6 5-6" } },
+]);
+const AlertTriangle = mkIcon([
+  { tag: "path", attrs: { d: "M12 3 2 21h20L12 3z" } },
+  { tag: "path", attrs: { d: "M12 10v4" } },
+  { tag: "path", attrs: { d: "M12 17h.01" } },
+]);
+const Plus = mkIcon([
+  { tag: "path", attrs: { d: "M12 5v14" } },
+  { tag: "path", attrs: { d: "M5 12h14" } },
+]);
+const X = mkIcon([
+  { tag: "path", attrs: { d: "M18 6 6 18" } },
+  { tag: "path", attrs: { d: "M6 6l12 12" } },
+]);
+const Pencil = mkIcon([
+  { tag: "path", attrs: { d: "M17 3a2.8 2.8 0 0 1 4 4L7 21l-4 1 1-4Z" } },
+]);
+const Trash2 = mkIcon([
+  { tag: "path", attrs: { d: "M3 6h18" } },
+  { tag: "path", attrs: { d: "M8 6V4h8v2" } },
+  { tag: "path", attrs: { d: "M19 6l-1 14H6L5 6" } },
+  { tag: "path", attrs: { d: "M10 11v6" } },
+  { tag: "path", attrs: { d: "M14 11v6" } },
+]);
+const Gauge = mkIcon([
+  { tag: "path", attrs: { d: "M12 15 16 9" } },
+  { tag: "circle", attrs: { cx: 12, cy: 15, r: 1.2 } },
+  { tag: "path", attrs: { d: "M3 15a9 9 0 1 1 18 0" } },
+]);
+const ShieldAlert = mkIcon([
+  { tag: "path", attrs: { d: "M12 3l8 3v6c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V6z" } },
+  { tag: "path", attrs: { d: "M12 8v5" } },
+  { tag: "path", attrs: { d: "M12 16h.01" } },
+]);
+const CheckCircle2 = mkIcon([
+  { tag: "circle", attrs: { cx: 12, cy: 12, r: 9 } },
+  { tag: "path", attrs: { d: "M8.5 12.2l2.3 2.3 4.7-5" } },
+]);
+const Wrench = mkIcon([
+  { tag: "path", attrs: { d: "M14.7 6.3a4 4 0 0 0-5.4 5l-6.6 6.6 2.4 2.4 6.6-6.6a4 4 0 0 0 5-5.4l-2.7 2.7-2-2z" } },
+]);
+const ChevronRight = mkIcon([{ tag: "path", attrs: { d: "M9 6l6 6-6 6" } }]);
+const ChevronLeft = mkIcon([{ tag: "path", attrs: { d: "M15 6l-6 6 6 6" } }]);
+const ChevronDown = mkIcon([{ tag: "path", attrs: { d: "M6 9l6 6 6-6" } }]);
+const CalendarDays = mkIcon([
+  { tag: "rect", attrs: { x: 3, y: 5, width: 18, height: 16, rx: 2 } },
+  { tag: "path", attrs: { d: "M3 10h18" } },
+  { tag: "path", attrs: { d: "M8 3v4" } },
+  { tag: "path", attrs: { d: "M16 3v4" } },
+  { tag: "path", attrs: { d: "M8 14h.01" } },
+  { tag: "path", attrs: { d: "M12 14h.01" } },
+  { tag: "path", attrs: { d: "M16 14h.01" } },
+]);
+const User = mkIcon([
+  { tag: "circle", attrs: { cx: 12, cy: 8, r: 4 } },
+  { tag: "path", attrs: { d: "M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" } },
+]);
+const Phone = mkIcon([
+  { tag: "path", attrs: { d: "M5 4h4l1.5 4.5L8 10.5a12 12 0 0 0 5.5 5.5l1.5-2.5L19.5 15V19a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4z" } },
+]);
+const Key = mkIcon([
+  { tag: "circle", attrs: { cx: 8, cy: 15, r: 4 } },
+  { tag: "path", attrs: { d: "M10.8 12.2 20 3" } },
+  { tag: "path", attrs: { d: "M16 7l3 3" } },
+  { tag: "path", attrs: { d: "M13 10l3 3" } },
+]);
+const ClipboardList = mkIcon([
+  { tag: "rect", attrs: { x: 5, y: 4, width: 14, height: 17, rx: 2 } },
+  { tag: "rect", attrs: { x: 9, y: 2.3, width: 6, height: 3.4, rx: 1 } },
+  { tag: "path", attrs: { d: "M8.5 11h7" } },
+  { tag: "path", attrs: { d: "M8.5 14.5h7" } },
+  { tag: "path", attrs: { d: "M8.5 18h4" } },
+]);
+const Download = mkIcon([
+  { tag: "path", attrs: { d: "M12 4v11" } },
+  { tag: "path", attrs: { d: "M7 11l5 5 5-5" } },
+  { tag: "path", attrs: { d: "M4 19h16" } },
+]);
+const Upload = mkIcon([
+  { tag: "path", attrs: { d: "M12 20V9" } },
+  { tag: "path", attrs: { d: "M7 13l5-5 5 5" } },
+  { tag: "path", attrs: { d: "M4 19h16" } },
+]);
+const ListChecks = mkIcon([
+  { tag: "path", attrs: { d: "M4 6l1.5 1.5L8 5" } },
+  { tag: "path", attrs: { d: "M4 12l1.5 1.5L8 11" } },
+  { tag: "path", attrs: { d: "M4 18l1.5 1.5L8 17" } },
+  { tag: "path", attrs: { d: "M11 6h9" } },
+  { tag: "path", attrs: { d: "M11 12h9" } },
+  { tag: "path", attrs: { d: "M11 18h9" } },
+]);
+const Receipt = mkIcon([
+  { tag: "path", attrs: { d: "M5 3h14v18l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L4 21V3z" } },
+  { tag: "path", attrs: { d: "M8 8h8" } },
+  { tag: "path", attrs: { d: "M8 12h8" } },
+  { tag: "path", attrs: { d: "M8 16h5" } },
+]);
+const Home = mkIcon([
+  { tag: "path", attrs: { d: "M3 11l9-7 9 7" } },
+  { tag: "path", attrs: { d: "M5 10v10h14V10" } },
+  { tag: "path", attrs: { d: "M9 20v-6h6v6" } },
+]);
+const Shield = mkIcon([
+  { tag: "path", attrs: { d: "M12 3l8 3v6c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V6z" } },
+]);
+const LayoutGrid = mkIcon([
+  { tag: "rect", attrs: { x: 3, y: 3, width: 8, height: 8, rx: 1.5 } },
+  { tag: "rect", attrs: { x: 13, y: 3, width: 8, height: 8, rx: 1.5 } },
+  { tag: "rect", attrs: { x: 3, y: 13, width: 8, height: 8, rx: 1.5 } },
+  { tag: "rect", attrs: { x: 13, y: 13, width: 8, height: 8, rx: 1.5 } },
+]);
+const ImageOff = mkIcon([
+  { tag: "path", attrs: { d: "M3 3l18 18" } },
+  { tag: "path", attrs: { d: "M21 15V5a2 2 0 0 0-2-2H7" } },
+  { tag: "path", attrs: { d: "M3 7v12a2 2 0 0 0 2 2h12" } },
+  { tag: "circle", attrs: { cx: 9, cy: 9, r: 1.6 } },
+]);
+const Camera = mkIcon([
+  { tag: "path", attrs: { d: "M4 8h3l1.5-2.5h7L17 8h3v11H4z" } },
+  { tag: "circle", attrs: { cx: 12, cy: 13.5, r: 3.5 } },
+]);
+const Menu = mkIcon([
+  { tag: "path", attrs: { d: "M3 6h18" } },
+  { tag: "path", attrs: { d: "M3 12h18" } },
+  { tag: "path", attrs: { d: "M3 18h18" } },
+]);
+
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
 const VSTATUS = {
@@ -155,10 +270,10 @@ const SEED_ORCAMENTOS = [];
 const TIPO_ORCAMENTO_OPCOES = ["Manutenção de viatura", "Manutenção de embarcação", "Material de consumo", "Equipamento", "Serviço"];
 const EXPEDIENTE_STATUS_OPCOES = ["Serviço Operacional", "Expediente", "Almoxarifado do dia", "Folga", "Férias", "Licença"];
 const EXPEDIENTE_STATUS_COR = {
-  "Serviço Operacional": { fg: "#B23B3B", bg: "#FBE3E3" },
-  "Expediente": { fg: "#2F6FB2", bg: "#E3EDFB" },
-  "Almoxarifado do dia": { fg: "#B0791A", bg: "#FBF0DC" },
-  "Folga": { fg: "#2F7D4F", bg: "#E4F2E8" },
+  "Serviço Operacional": { fg: "#C15A1B", bg: "#FCE8DA" },
+  "Expediente": { fg: "#2F7D4F", bg: "#E4F2E8" },
+  "Almoxarifado do dia": { fg: "#2F6FB2", bg: "#E3EDFB" },
+  "Folga": { fg: "#B23B3B", bg: "#FBE3E3" },
   "Férias": { fg: "#7A4FA3", bg: "#F1E6F8" },
   "Licença": { fg: "#6B6560", bg: "#F0EBE0" },
 };
@@ -2185,21 +2300,26 @@ function App() {
 
                 <div className="panel">
                   <div className="cal-weekdays">{WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}</div>
-                  <div className="cal-grid">
+                  <div className="cal-grid cal-grid-exp">
                     {cells.map((d, idx) => {
-                      if (!d) return <div key={idx} className="cal-cell empty-cell" />;
+                      if (!d) return <div key={idx} className="cal-cell cal-cell-exp empty-cell" />;
                       const dateStr = `${String(d).padStart(2, "0")}/${String(calMonth + 1).padStart(2, "0")}/${calYear}`;
                       const entradas = expedienteByDate[dateStr] || [];
                       const cellDate = new Date(calYear, calMonth, d);
                       const isToday = sameDate(cellDate, today);
                       return (
-                        <div key={idx} className={`cal-cell ${isToday ? "is-today" : ""}`}
+                        <div key={idx} className={`cal-cell cal-cell-exp ${isToday ? "is-today" : ""}`}
                           onClick={() => !visaoExterna && (() => { setEditingExpediente(null); setExpedienteDefaultDate(dateStr); setEditingExpedienteOpen(true); })()}>
                           <div className="cal-daynum">{d}</div>
                           <div className="cal-expediente-tags">
                             {entradas.map((e) => {
                               const cor = EXPEDIENTE_STATUS_COR[e.status] || EXPEDIENTE_STATUS_COR["Expediente"];
-                              return <span key={e.id} className="cal-tag" style={{ background: cor.bg, color: cor.fg }}>{militarCodigo(e.militar)}</span>;
+                              return (
+                                <div key={e.id} className="cal-exp-entry" style={{ background: cor.bg, color: cor.fg }}>
+                                  <span className="cal-exp-name">{e.militar}</span>
+                                  <span className="cal-exp-status">{e.status}</span>
+                                </div>
+                              );
                             })}
                           </div>
                         </div>
@@ -2565,7 +2685,13 @@ const CSS = `
 .cal-cell.is-pending{background:#FBF0DC;border-style:dashed;}
 .cal-daynum{font-size:11px;font-weight:700;}
 .cal-code{font-size:10px;font-weight:700;letter-spacing:.02em;}
-.cal-expediente-tags{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
+.cal-grid-exp{grid-auto-rows:1fr;}
+.cal-cell-exp{aspect-ratio:auto;min-height:118px;align-items:stretch;overflow:auto;gap:4px;}
+.cal-cell-exp.empty-cell{min-height:0;}
+.cal-expediente-tags{display:flex;flex-direction:column;gap:4px;margin-top:2px;width:100%;}
+.cal-exp-entry{display:flex;flex-direction:column;gap:1px;padding:3px 6px;border-radius:6px;width:100%;box-sizing:border-box;}
+.cal-exp-name{font-size:11px;font-weight:700;line-height:1.2;word-break:break-word;}
+.cal-exp-status{font-size:9px;font-weight:600;opacity:.85;line-height:1.2;}
 .cal-tag{font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:4px;line-height:1.4;}
 .legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);}
@@ -2630,6 +2756,10 @@ const CSS = `
   .cal-code{font-size:8.5px;}
   .cal-pending{font-size:7.5px;}
   .cal-weekday{font-size:9px;}
+  .cal-cell-exp{min-height:88px;padding:4px;}
+  .cal-exp-name{font-size:9.5px;}
+  .cal-exp-status{font-size:8px;}
+  .cal-exp-entry{padding:2px 4px;}
 
   .table-panel{overflow-x:auto;}
   .esc-head,.esc-row{min-width:420px;}
@@ -2649,7 +2779,6 @@ const CSS = `
 /* ---------------- Montagem ---------------- */
 const __root = ReactDOM.createRoot(document.getElementById("root"));
 __root.render(React.createElement(App));
-
 </script>
 
 <script>
