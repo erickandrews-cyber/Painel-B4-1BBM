@@ -2299,7 +2299,7 @@ function App() {
                 </div>
 
                 <div className="panel">
-                  <div className="cal-weekdays">{WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}</div>
+                  <div className="cal-weekdays cal-weekdays-exp">{WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}</div>
                   <div className="cal-grid cal-grid-exp">
                     {cells.map((d, idx) => {
                       if (!d) return <div key={idx} className="cal-cell cal-cell-exp empty-cell" />;
@@ -2310,8 +2310,12 @@ function App() {
                       return (
                         <div key={idx} className={`cal-cell cal-cell-exp ${isToday ? "is-today" : ""}`}
                           onClick={() => !visaoExterna && (() => { setEditingExpediente(null); setExpedienteDefaultDate(dateStr); setEditingExpedienteOpen(true); })()}>
-                          <div className="cal-daynum">{d}</div>
+                          <div className="cal-daynum">
+                            <span className="cal-daynum-num">{d}</span>
+                            <span className="cal-daynum-dow">{WEEKDAYS[cellDate.getDay()]}</span>
+                          </div>
                           <div className="cal-expediente-tags">
+                            {entradas.length === 0 && <span className="cal-exp-empty">—</span>}
                             {entradas.map((e) => {
                               const cor = EXPEDIENTE_STATUS_COR[e.status] || EXPEDIENTE_STATUS_COR["Expediente"];
                               return (
@@ -2684,14 +2688,16 @@ const CSS = `
 .cal-cell.is-today .cal-daynum,.cal-cell.is-today .cal-code{color:#fff;}
 .cal-cell.is-pending{background:#FBF0DC;border-style:dashed;}
 .cal-daynum{font-size:11px;font-weight:700;}
+.cal-daynum-dow{display:none;}
 .cal-code{font-size:10px;font-weight:700;letter-spacing:.02em;}
 .cal-grid-exp{grid-auto-rows:1fr;}
 .cal-cell-exp{aspect-ratio:auto;min-height:118px;align-items:stretch;overflow:auto;gap:4px;}
 .cal-cell-exp.empty-cell{min-height:0;}
 .cal-expediente-tags{display:flex;flex-direction:column;gap:4px;margin-top:2px;width:100%;}
 .cal-exp-entry{display:flex;flex-direction:column;gap:1px;padding:3px 6px;border-radius:6px;width:100%;box-sizing:border-box;}
-.cal-exp-name{font-size:11px;font-weight:700;line-height:1.2;word-break:break-word;}
+.cal-exp-name{font-size:11px;font-weight:700;line-height:1.2;word-break:normal;overflow-wrap:break-word;}
 .cal-exp-status{font-size:9px;font-weight:600;opacity:.85;line-height:1.2;}
+.cal-exp-empty{display:none;}
 .cal-tag{font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:4px;line-height:1.4;}
 .legend-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);}
@@ -2756,10 +2762,18 @@ const CSS = `
   .cal-code{font-size:8.5px;}
   .cal-pending{font-size:7.5px;}
   .cal-weekday{font-size:9px;}
-  .cal-cell-exp{min-height:88px;padding:4px;}
-  .cal-exp-name{font-size:9.5px;}
-  .cal-exp-status{font-size:8px;}
-  .cal-exp-entry{padding:2px 4px;}
+  .cal-weekdays-exp{display:none;}
+  .cal-grid-exp{display:flex;flex-direction:column;gap:8px;}
+  .cal-cell-exp{min-height:0;flex-direction:row;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;}
+  .cal-cell-exp.empty-cell{display:none;}
+  .cal-cell-exp .cal-daynum{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 40px;width:40px;padding-top:2px;}
+  .cal-cell-exp .cal-daynum-num{font-size:16px;line-height:1.1;}
+  .cal-cell-exp .cal-daynum-dow{display:block;font-size:9px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-top:1px;}
+  .cal-cell-exp.is-today .cal-daynum-dow{color:#fff;opacity:.85;}
+  .cal-exp-name{font-size:12.5px;}
+  .cal-exp-status{font-size:10px;}
+  .cal-exp-entry{padding:4px 8px;flex-direction:row;align-items:baseline;gap:6px;flex-wrap:wrap;}
+  .cal-exp-empty{display:block;font-size:11.5px;color:#C9C2B4;padding-top:6px;}
 
   .table-panel{overflow-x:auto;}
   .esc-head,.esc-row{min-width:420px;}
