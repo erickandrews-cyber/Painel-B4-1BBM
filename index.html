@@ -199,6 +199,7 @@ const Menu = mkIcon([
   { tag: "path", attrs: { d: "M3 12h18" } },
   { tag: "path", attrs: { d: "M3 18h18" } },
 ]);
+
 const { useState, useEffect } = React;
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
@@ -1373,17 +1374,25 @@ function ChecklistAvulsaModal({ setor, setorLabel, hojeStr, onClose, onSave }) {
   const [responsavel, setResponsavel] = useState("");
   const [outro, setOutro] = useState(false);
   const [customName, setCustomName] = useState("");
+  const [data, setData] = useState(hojeStr);
   const handleSelect = (e) => {
     if (e.target.value === "__outro__") { setOutro(true); setResponsavel(customName); }
     else { setOutro(false); setResponsavel(e.target.value); }
   };
   const handleCustomName = (e) => { setCustomName(e.target.value); setResponsavel(e.target.value); };
+  const dataValida = !!parseBRDate(data);
   return (
     <div className="modal-back" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head"><h3>Nova tarefa avulsa — {setorLabel}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
         <div className="modal-body">
           <label>O que precisa ser feito<textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Descreva a tarefa" /></label>
+          <label>Para quando
+            <input value={data} onChange={(e) => setData(e.target.value)} placeholder="dd/mm/aaaa" />
+          </label>
+          <div className="muted-sm" style={{ marginTop: -8 }}>
+            Deixe como está para uma tarefa de hoje, ou mude para uma data futura — ela só vai aparecer como pendente quando o dia chegar.
+          </div>
           <label>Responsável (opcional)
             <select value={outro ? "__outro__" : responsavel} onChange={handleSelect}>
               <option value="">A definir</option>
@@ -1397,8 +1406,8 @@ function ChecklistAvulsaModal({ setor, setorLabel, hojeStr, onClose, onSave }) {
           <button className="btn-secondary" onClick={onClose}>Cancelar</button>
           <button
             className="btn-primary"
-            disabled={!texto.trim()}
-            onClick={() => onSave({ id: uid(), setor, templateId: null, texto: texto.trim(), responsavel, data: hojeStr, feito: false, feitoEm: "", observacao: "", avulsa: true })}
+            disabled={!texto.trim() || !dataValida}
+            onClick={() => onSave({ id: uid(), setor, templateId: null, texto: texto.trim(), responsavel, data, feito: false, feitoEm: "", observacao: "", avulsa: true })}
           >
             Adicionar
           </button>
@@ -1611,6 +1620,8 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
   const atrasadas = ativosPendentes.filter((it) => dataOf(it) && dataOf(it) < hojeDate).sort((a, b) => dataOf(a) - dataOf(b));
   const atrasadasIds = new Set(atrasadas.map((it) => it.id));
   const hoje = ativosPendentes.filter((it) => dataOf(it) && dataOf(it).getTime() === hojeDate.getTime());
+  const futuras = ativosPendentes.filter((it) => dataOf(it) && dataOf(it) > hojeDate).sort((a, b) => dataOf(a) - dataOf(b));
+  const futurasIds = new Set(futuras.map((it) => it.id));
   const feitasHoje = lista.filter((it) => it.feito && it.data === hojeStr);
   const totalHoje = hoje.length + feitasHoje.length;
   const agrupaPorMilitar = setorKey !== "almoxarifado";
@@ -1622,7 +1633,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
     setObsAbertos((prev) => { const n = new Set(prev); n.delete(it.id); return n; });
   };
 
-  const renderItem = (it, atrasada) => {
+  const renderItem = (it, atrasada, futura) => {
     if (it.dispensada) {
       return (
         <div key={it.id} className="checklist-item is-dispensada">
@@ -1637,8 +1648,8 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
         </div>
       );
     }
-    const podeAvisarAntes = !it.feito && !atrasada && !visaoExterna;
-    const mostrarObs = (atrasada && !it.feito) || (!it.feito && !!it.observacao) || (podeAvisarAntes && obsAbertos.has(it.id));
+    const podeAvisarAntes = !it.feito && !atrasada && !futura && !visaoExterna;
+    const mostrarObs = (atrasada && !it.feito) || (!it.feito && !futura && !!it.observacao) || (podeAvisarAntes && obsAbertos.has(it.id));
     return (
       <div key={it.id} className={`checklist-item ${it.feito ? "is-done" : ""} ${atrasada ? "is-late" : ""}`}>
         <label className="checklist-check">
@@ -1648,6 +1659,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
           <div className="checklist-item-texto">{it.texto}</div>
           <div className="checklist-item-meta">
             {atrasada && !it.feito && <span className="checklist-tag-atraso">Pendente desde {it.data}</span>}
+            {futura && !it.feito && <span className="checklist-tag-futura">Agendada para {it.data}</span>}
             {it.avulsa && <span className="checklist-tag-avulsa">Avulsa</span>}
             {it.coberturaDe && <span className="checklist-tag-cobertura">Cobrindo {it.coberturaDe}</span>}
             {agrupaPorMilitar && !visaoExterna && (
@@ -1709,6 +1721,13 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
         {hoje.map((it) => renderItem(it, false))}
         {feitasHoje.map((it) => renderItem(it, false))}
 
+        {futuras.length > 0 && (
+          <>
+            <div className="checklist-group-label checklist-group-futura"><CalendarDays size={13} /> Agendadas para depois ({futuras.length})</div>
+            {futuras.map((it) => renderItem(it, false, true))}
+          </>
+        )}
+
         {dispensados.length > 0 && (
           <>
             <div className="checklist-group-label">Dispensadas (Escala)</div>
@@ -1722,7 +1741,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
   }
 
   // Seção B/4 e SEMAN: agrupado por militar responsável, para deixar claro quem faz o quê.
-  const todos = [...atrasadas, ...hoje, ...feitasHoje, ...dispensados];
+  const todos = [...atrasadas, ...hoje, ...feitasHoje, ...futuras, ...dispensados];
   const grupos = {};
   todos.forEach((it) => {
     const chave = it.responsavel && it.responsavel.trim() ? it.responsavel : "__sem__";
@@ -1743,7 +1762,8 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
 
       {nomes.map((nome) => {
         const itensDoMilitar = grupos[nome];
-        const acionaveis = itensDoMilitar.filter((it) => !it.dispensada);
+        const acionaveis = itensDoMilitar.filter((it) => !it.dispensada && !futurasIds.has(it.id));
+        const futurasDoMilitar = itensDoMilitar.filter((it) => !it.dispensada && futurasIds.has(it.id));
         const dispensadosDoMilitar = itensDoMilitar.filter((it) => it.dispensada);
         const feitosCount = acionaveis.filter((it) => it.feito).length;
         const semResp = nome === "__sem__";
@@ -1759,6 +1779,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
             </div>
             <div className="checklist-person-body">
               {acionaveis.map((it) => renderItem(it, atrasadasIds.has(it.id)))}
+              {futurasDoMilitar.map((it) => renderItem(it, false, true))}
               {dispensadosDoMilitar.map((it) => renderItem(it, false))}
             </div>
           </div>
@@ -3357,6 +3378,7 @@ const CSS = `
 .checklist-counter{font-size:12.5px;font-weight:700;background:#F0EBE0;color:#6B6560;padding:5px 10px;border-radius:16px;white-space:nowrap;}
 .checklist-group-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin:14px 0 6px;}
 .checklist-group-late{color:#B23B3B;}
+.checklist-group-futura{color:#2A5FA5;}
 .checklist-item{display:flex;align-items:flex-start;gap:10px;padding:10px 6px;border-bottom:1px solid #F0EBE0;}
 .checklist-item:last-child{border-bottom:none;}
 .checklist-item.is-late{background:#FBE3E3;border-radius:8px;padding:10px 10px;margin-bottom:4px;border-bottom:none;}
@@ -3367,6 +3389,7 @@ const CSS = `
 .checklist-item-texto{font-size:13.5px;color:var(--ink);line-height:1.4;}
 .checklist-item-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;}
 .checklist-tag-atraso{font-size:10.5px;font-weight:700;color:#B23B3B;background:#fff;padding:2px 7px;border-radius:10px;}
+.checklist-tag-futura{font-size:10.5px;font-weight:700;color:#2A5FA5;background:#E3EDFB;padding:2px 7px;border-radius:10px;}
 .checklist-tag-avulsa{font-size:10.5px;font-weight:700;color:#2A5FA5;background:#E3EDFB;padding:2px 7px;border-radius:10px;}
 .checklist-item-del{flex-shrink:0;opacity:.55;}
 .checklist-item-del:hover{opacity:1;}
@@ -3469,7 +3492,8 @@ const CSS = `
 }
 `;
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 
 <script>
