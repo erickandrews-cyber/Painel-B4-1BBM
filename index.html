@@ -563,7 +563,6 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           {item("chaves", "Chaves", Key)}
           {item("manutencao", "Manutenção", Wrench)}
           {item("cautelas", "Cautelas", ClipboardList)}
-          {item("demandas", "Demandas", ListChecks)}
           {item("orcamentos", "Orçamentos", Receipt)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("checklist", "Checklist do Dia", ListChecks)}
@@ -1552,10 +1551,12 @@ function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd,
   );
 }
 
-/* Aviso antecipado (avisar hoje que não vai conseguir cumprir a função), com botão explícito
-   de "Salvar" — para deixar claro que o aviso foi enviado — e de "Remover", para o caso do
-   militar contornar o impedimento e conseguir cumprir a missão normalmente. */
-function ChecklistAvisoAntecipado({ item, onSave, onRemove }) {
+/* Justificativa de uma tarefa (motivo obrigatório para algo pendente de dias anteriores, ou
+   aviso antecipado de hoje que não vai dar tempo). Tem um botão explícito de "Salvar" — pra
+   deixar claro que o texto foi enviado, já que digitar sozinho não dava nenhum retorno visível —
+   e, no caso do aviso antecipado, um "Remover", para quando o militar contorna o impedimento e
+   consegue cumprir a missão normalmente. */
+function ChecklistJustificativa({ item, onSave, onRemove, obrigatorio }) {
   const [editing, setEditing] = useState(!item.observacao);
   const [draft, setDraft] = useState(item.observacao || "");
 
@@ -1566,18 +1567,19 @@ function ChecklistAvisoAntecipado({ item, onSave, onRemove }) {
     setEditing(false);
   };
   const cancelar = () => {
-    if (!item.observacao) { onRemove(); return; }
+    if (!item.observacao) { if (onRemove) onRemove(); return; }
     setDraft(item.observacao);
     setEditing(false);
   };
   const editar = () => { setDraft(item.observacao); setEditing(true); };
+  const podeCancelar = !!item.observacao || !!onRemove;
 
   if (!editing) {
     return (
-      <div className="checklist-obs-aviso">
-        <AlertTriangle size={11} /> <span>Aviso: {item.observacao}</span>
-        <button type="button" className="icon-btn" title="Editar aviso" onClick={editar}><Pencil size={12} /></button>
-        <button type="button" className="icon-btn icon-danger" title="Remover aviso (se já conseguir cumprir a missão)" onClick={onRemove}><Trash2 size={12} /></button>
+      <div className={obrigatorio ? "checklist-obs-saved" : "checklist-obs-aviso"}>
+        <AlertTriangle size={11} /> <span>{obrigatorio ? "Motivo" : "Aviso"}: {item.observacao}</span>
+        <button type="button" className="icon-btn" title="Editar" onClick={editar}><Pencil size={12} /></button>
+        {onRemove && <button type="button" className="icon-btn icon-danger" title="Remover aviso (se já conseguir cumprir a missão)" onClick={onRemove}><Trash2 size={12} /></button>}
       </div>
     );
   }
@@ -1589,11 +1591,11 @@ function ChecklistAvisoAntecipado({ item, onSave, onRemove }) {
         rows={2}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Motivo de não conseguir fazer hoje (aviso antecipado)"
+        placeholder={obrigatorio ? "Motivo de não ter sido feito (obrigatório)" : "Motivo de não conseguir fazer hoje (aviso antecipado)"}
       />
       <div className="checklist-obs-actions">
-        <button type="button" className="btn-primary sm" onClick={salvar} disabled={!draft.trim()}>Salvar aviso</button>
-        <button type="button" className="btn-secondary sm" onClick={cancelar}>Cancelar</button>
+        <button type="button" className="btn-primary sm" onClick={salvar} disabled={!draft.trim()}>{obrigatorio ? "Salvar motivo" : "Salvar aviso"}</button>
+        {podeCancelar && <button type="button" className="btn-secondary sm" onClick={cancelar}>Cancelar</button>}
       </div>
     </div>
   );
@@ -1655,20 +1657,13 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
           {mostrarObs ? (
             visaoExterna ? (
               it.observacao ? <div className="checklist-obs-view">{atrasada ? "Motivo" : "Aviso"}: {it.observacao}</div> : <div className="checklist-obs-falta"><AlertTriangle size={11} /> Sem justificativa registrada</div>
-            ) : atrasada ? (
-              <textarea
-                className="checklist-obs-input"
-                rows={2}
-                value={it.observacao}
-                onChange={(e) => onObservacao(it, e.target.value)}
-                placeholder="Motivo de não ter sido feito (obrigatório)"
-              />
             ) : (
-              <ChecklistAvisoAntecipado
+              <ChecklistJustificativa
                 key={it.id}
                 item={it}
+                obrigatorio={atrasada}
                 onSave={(texto) => onObservacao(it, texto)}
-                onRemove={() => fecharObs(it)}
+                onRemove={atrasada ? null : () => fecharObs(it)}
               />
             )
           ) : (
@@ -3378,10 +3373,11 @@ const CSS = `
 .checklist-resp{font-size:11.5px;color:var(--muted);}
 .checklist-resp-input{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;color:var(--ink);min-width:160px;}
 .checklist-obs-view{font-size:12px;color:#B23B3B;margin-top:6px;font-style:italic;}
-.checklist-obs-aviso{display:flex;align-items:flex-start;gap:6px;color:#8A6D3B;background:#F5EFE3;padding:6px 8px;border-radius:8px;}
-.checklist-obs-aviso span{flex:1;}
-.checklist-obs-aviso .icon-btn{opacity:.7;flex-shrink:0;}
-.checklist-obs-aviso .icon-btn:hover{opacity:1;}
+.checklist-obs-aviso{display:flex;align-items:flex-start;gap:6px;color:#8A6D3B;background:#F5EFE3;padding:6px 8px;border-radius:8px;margin-top:6px;}
+.checklist-obs-saved{display:flex;align-items:flex-start;gap:6px;color:#B23B3B;background:#FBE9E9;padding:6px 8px;border-radius:8px;margin-top:6px;}
+.checklist-obs-aviso span,.checklist-obs-saved span{flex:1;}
+.checklist-obs-aviso .icon-btn,.checklist-obs-saved .icon-btn{opacity:.7;flex-shrink:0;}
+.checklist-obs-aviso .icon-btn:hover,.checklist-obs-saved .icon-btn:hover{opacity:1;}
 .checklist-aviso-edit{margin-top:4px;}
 .checklist-obs-actions{display:flex;gap:8px;margin-top:6px;}
 .checklist-obs-falta{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#B23B3B;font-weight:700;margin-top:6px;}
