@@ -46,8 +46,6 @@
 </script>
 
 <script type="text/plain" id="app-source">
-const { useState, useEffect } = React;
-
 function IconBase({ size = 16, children, style, ...rest }) {
   return React.createElement(
     "svg",
@@ -201,7 +199,7 @@ const Menu = mkIcon([
   { tag: "path", attrs: { d: "M3 12h18" } },
   { tag: "path", attrs: { d: "M3 18h18" } },
 ]);
-
+const { useState, useEffect } = React;
 
 /* ---------- estilos de status (pill claro, como no Claude Design) ---------- */
 const VSTATUS = {
@@ -312,6 +310,79 @@ const SEED_ESCALAS = [
   { id: "esc30", data: "30/08/2026", militar: "3º Sgt. Almeida", obs: "" },
   { id: "esc31", data: "31/08/2026", militar: "3º Sgt. Dos Santos", obs: "" },
 ];
+
+/* ---------------- Checklist do Dia ---------------- */
+const CHECKLIST_SETORES = [
+  { key: "almoxarifado", label: "Almoxarifado do Dia" },
+  { key: "b4", label: "Seção B/4" },
+  { key: "seman", label: "SEMAN" },
+];
+/* Paleta neutra (sem tons de rosa/magenta) usada para identificar cada militar visualmente. */
+const CHECKLIST_PALETA_MILITAR = [
+  { bg: "#E9F1F7", fg: "#2C5F7C", accent: "#4A7FA0" },
+  { bg: "#EEF2E4", fg: "#57633A", accent: "#7E9459" },
+  { bg: "#F5EFE3", fg: "#8A6D3B", accent: "#B99055" },
+  { bg: "#EAF0EF", fg: "#3D6B63", accent: "#5C9186" },
+  { bg: "#F0EAE3", fg: "#7A5C3F", accent: "#A9825A" },
+  { bg: "#E7EAF1", fg: "#41507A", accent: "#616F9C" },
+  { bg: "#EFECE3", fg: "#6B6039", accent: "#9C8F5A" },
+  { bg: "#E6EEEA", fg: "#3B6350", accent: "#5A8F76" },
+];
+const CHECKLIST_COR_SEM_RESPONSAVEL = { bg: "#F0EBE0", fg: "#6B6560", accent: "#B9B2A4" };
+function corParaMilitar(nome) {
+  if (!nome) return CHECKLIST_COR_SEM_RESPONSAVEL;
+  let hash = 0;
+  for (let i = 0; i < nome.length; i++) hash = (hash * 31 + nome.charCodeAt(i)) >>> 0;
+  return CHECKLIST_PALETA_MILITAR[hash % CHECKLIST_PALETA_MILITAR.length];
+}
+const SEED_CHECKLIST_TEMPLATES = [
+  { id: "ct1", setor: "almoxarifado", texto: "Realizar a desinfecção do material de AR, com exceção de materiais que passam pelo NUDEN (ambus, extensores, cânulas, máscaras, umidificadores)", ativo: true },
+  { id: "ct2", setor: "almoxarifado", texto: "Revisar e repor os materiais das bolsas de APH de praia", ativo: true },
+  { id: "ct3", setor: "almoxarifado", texto: "Verificar as validades dos materiais", ativo: true },
+  { id: "ct4", setor: "almoxarifado", texto: "Realizar uma vistoria nos banheiros, guarita e locais que precisam de reposição de materiais", ativo: true },
+  { id: "ct5", setor: "almoxarifado", texto: "Operar a cascata e realizar as recargas dos cilindros de EPR", ativo: true },
+  { id: "ct6", setor: "almoxarifado", texto: "Verificar os depósitos de combustível se estão cheios para o serviço", ativo: true },
+  { id: "ct7", setor: "almoxarifado", texto: "Higienização do almoxarifado de praia", ativo: true },
+  { id: "ct8", setor: "almoxarifado", texto: "Atender a demanda de materiais das guarnições operacionais na passagem de serviço", ativo: true },
+  { id: "ct9", setor: "almoxarifado", texto: "Atender as demandas de materiais para o serviço operacional e cautelas que surgirem após o expediente", ativo: true },
+  { id: "ct10", setor: "almoxarifado", texto: "Verificar o estoque de pó de serragem", ativo: true },
+  { id: "ct11", setor: "almoxarifado", texto: "Ser a primeira resposta em casos de demandas no WhatsApp", ativo: true },
+  { id: "ct12", setor: "almoxarifado", texto: "Pagar e receber o material de praia", ativo: true },
+  { id: "ct13", setor: "almoxarifado", texto: "Fazer o controle das viaturas no painel, cadastrando as KMs das viaturas", ativo: true },
+];
+const SEED_CHECKLIST_ITENS = [];
+
+/* Funções fixas podem ter mais de um militar responsável (principal + suplente(s)).
+   getTplResponsaveis mantém compatibilidade com o campo antigo (responsavelPadrao, um só nome). */
+function getTplResponsaveis(tpl) {
+  if (Array.isArray(tpl.responsaveis) && tpl.responsaveis.length) return tpl.responsaveis.filter(Boolean);
+  if (tpl.responsavelPadrao) return [tpl.responsavelPadrao];
+  return [];
+}
+function statusExpedienteDoDia(expediente, nome, dataStr) {
+  if (!nome) return null;
+  const reg = expediente.find((e) => e.data === dataStr && e.militar === nome);
+  return reg ? reg.status : null; // null = sem registro na Escala → presume-se disponível
+}
+function militarDisponivelNoDia(expediente, nome, dataStr) {
+  const status = statusExpedienteDoDia(expediente, nome, dataStr);
+  return status === null || status === "Expediente";
+}
+/* Decide quem executa a função num dado dia, considerando a Escala/Expediente:
+   usa o primeiro responsável disponível (em Expediente ou sem registro na Escala);
+   se nenhum estiver disponível, a função fica "dispensada" naquele dia. */
+function escolherResponsavelDoDia(expediente, tpl, dataStr) {
+  const cands = getTplResponsaveis(tpl);
+  if (cands.length === 0) return { responsavel: "", dispensada: false, dispensadaMotivo: "", coberturaDe: "" };
+  const disponivel = cands.find((nome) => militarDisponivelNoDia(expediente, nome, dataStr));
+  if (disponivel) {
+    return { responsavel: disponivel, dispensada: false, dispensadaMotivo: "", coberturaDe: disponivel !== cands[0] ? cands[0] : "" };
+  }
+  const motivos = cands
+    .map((nome) => { const status = statusExpedienteDoDia(expediente, nome, dataStr); return status ? `${nome} (${status})` : nome; })
+    .join(", ");
+  return { responsavel: cands[0], dispensada: true, dispensadaMotivo: `Ninguém disponível nesse dia: ${motivos}`, coberturaDe: "" };
+}
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function parseBRDate(s) {
@@ -495,6 +566,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           {item("demandas", "Demandas", ListChecks)}
           {item("orcamentos", "Orçamentos", Receipt)}
           {item("escalas", "Escalas", CalendarDays)}
+          {item("checklist", "Checklist do Dia", ListChecks)}
           {item("alertas", "Alertas", AlertTriangle)}
         </nav>
 
@@ -1297,6 +1369,412 @@ function ExpedienteModal({ initial, defaultDate, onClose, onSave }) {
   );
 }
 
+function ChecklistAvulsaModal({ setor, setorLabel, hojeStr, onClose, onSave }) {
+  const [texto, setTexto] = useState("");
+  const [responsavel, setResponsavel] = useState("");
+  const [outro, setOutro] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const handleSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutro(true); setResponsavel(customName); }
+    else { setOutro(false); setResponsavel(e.target.value); }
+  };
+  const handleCustomName = (e) => { setCustomName(e.target.value); setResponsavel(e.target.value); };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Nova tarefa avulsa — {setorLabel}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>O que precisa ser feito<textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Descreva a tarefa" /></label>
+          <label>Responsável (opcional)
+            <select value={outro ? "__outro__" : responsavel} onChange={handleSelect}>
+              <option value="">A definir</option>
+              {MILITARES.map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+              <option value="__outro__">Outro (digitar nome)</option>
+            </select>
+          </label>
+          {outro && <label>Nome<input value={customName} onChange={handleCustomName} placeholder="Graduação e nome" /></label>}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn-primary"
+            disabled={!texto.trim()}
+            onClick={() => onSave({ id: uid(), setor, templateId: null, texto: texto.trim(), responsavel, data: hojeStr, feito: false, feitoEm: "", observacao: "", avulsa: true })}
+          >
+            Adicionar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistResponsavelSelect({ value, onChange, className }) {
+  const isKnown = (nome) => !nome || MILITARES.some((m) => m.nome === nome);
+  const [outro, setOutro] = useState(!isKnown(value));
+  const [customName, setCustomName] = useState(!isKnown(value) ? value : "");
+  const handleSelect = (e) => {
+    if (e.target.value === "__outro__") { setOutro(true); onChange(customName); }
+    else { setOutro(false); onChange(e.target.value); }
+  };
+  const handleCustomName = (e) => { setCustomName(e.target.value); onChange(e.target.value); };
+  return outro ? (
+    <div style={{ display: "flex", gap: 6 }}>
+      <input className={className} value={customName} onChange={handleCustomName} placeholder="Nome do militar" style={{ flex: 1 }} />
+      <button type="button" className="icon-btn" title="Escolher da lista" onClick={() => { setOutro(false); onChange(""); }}><X size={13} /></button>
+    </div>
+  ) : (
+    <select className={className} value={value || ""} onChange={handleSelect}>
+      <option value="">Sem responsável definido</option>
+      {MILITARES.map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+      <option value="__outro__">Outro (digitar nome)</option>
+    </select>
+  );
+}
+
+function ChecklistMultiResponsavelPicker({ value, onChange }) {
+  const [customName, setCustomName] = useState("");
+  const addNome = (nome) => {
+    const n = (nome || "").trim();
+    if (!n || value.includes(n)) return;
+    onChange([...value, n]);
+  };
+  const removeNome = (nome) => onChange(value.filter((v) => v !== nome));
+  const confirmCustom = () => { addNome(customName); setCustomName(""); };
+  return (
+    <div className="checklist-multi-resp">
+      {value.length > 0 && (
+        <div className="checklist-chip-row">
+          {value.map((nome, i) => (
+            <span key={nome} className="checklist-chip">
+              {i === 0 && value.length > 1 && <span className="checklist-chip-tag">principal</span>}
+              {nome}
+              <button type="button" onClick={() => removeNome(nome)}><X size={11} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <select className="checklist-manage-resp" value="" onChange={(e) => addNome(e.target.value)}>
+          <option value="">+ Adicionar militar da lista...</option>
+          {MILITARES.filter((m) => !value.includes(m.nome)).map((m) => <option key={m.nome} value={m.nome}>{m.nome}</option>)}
+        </select>
+        <input
+          className="checklist-manage-resp"
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmCustom(); } }}
+          placeholder="Outro nome..."
+          style={{ width: 130 }}
+        />
+        <button type="button" className="icon-btn" title="Adicionar nome digitado" onClick={confirmCustom}><Plus size={13} /></button>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd, onToggle, onRemove, onEditTexto, onSetResponsaveis }) {
+  const temResponsavel = setor !== "almoxarifado";
+  const [novo, setNovo] = useState("");
+  const [novoResps, setNovoResps] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editingTexto, setEditingTexto] = useState("");
+  const lista = templates.filter((t) => t.setor === setor);
+
+  const add = () => {
+    if (!novo.trim()) return;
+    onAdd(novo.trim(), novoResps);
+    setNovo(""); setNovoResps([]);
+  };
+  const startEdit = (t) => { setEditingId(t.id); setEditingTexto(t.texto); };
+  const confirmEdit = () => {
+    if (editingTexto.trim()) onEditTexto(editingId, editingTexto.trim());
+    setEditingId(null); setEditingTexto("");
+  };
+  const cancelEdit = () => { setEditingId(null); setEditingTexto(""); };
+
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Gerenciar funções — {setorLabel}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Nova função / atribuição recorrente
+            <input value={novo} onChange={(e) => setNovo(e.target.value)} placeholder="Ex: Verificar estoque de..." onKeyDown={(e) => e.key === "Enter" && !temResponsavel && add()} />
+          </label>
+          {temResponsavel && (
+            <label>Responsável(is) por essa função
+              <ChecklistMultiResponsavelPicker value={novoResps} onChange={setNovoResps} />
+            </label>
+          )}
+          {temResponsavel && (
+            <div className="muted-sm">Adicionando mais de um militar: se o principal estiver de Serviço Operacional, Almoxarifado do Dia, Folga, Férias ou Licença no dia (conforme a Escala), a função passa automaticamente para o próximo da lista. Se todos estiverem indisponíveis, ela aparece como "Dispensada".</div>
+          )}
+          <button className="btn-primary sm" onClick={add} disabled={!novo.trim()} style={{ alignSelf: "flex-start" }}><Plus size={14} /> Adicionar função</button>
+
+          <div className="checklist-manage-list" style={{ marginTop: 6 }}>
+            {lista.length === 0 && <div className="empty" style={{ color: "#C9C2B4" }}>Nenhuma função cadastrada ainda.</div>}
+            {lista.map((t) => (
+              <div key={t.id} className="checklist-manage-row checklist-manage-row-full" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+                  <input type="checkbox" checked={t.ativo} onChange={() => onToggle(t.id)} title={t.ativo ? "Desativar função" : "Reativar função"} />
+                  {editingId === t.id ? (
+                    <input
+                      autoFocus
+                      style={{ flex: 1, minWidth: 0 }}
+                      value={editingTexto}
+                      onChange={(e) => setEditingTexto(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") confirmEdit(); if (e.key === "Escape") cancelEdit(); }}
+                    />
+                  ) : (
+                    <span style={{ flex: 1, minWidth: 0, opacity: t.ativo ? 1 : 0.5, textDecoration: t.ativo ? "none" : "line-through" }}>{t.texto}</span>
+                  )}
+                  {editingId === t.id ? (
+                    <>
+                      <button className="icon-btn" title="Salvar texto" onClick={confirmEdit}><CheckCircle2 size={14} /></button>
+                      <button className="icon-btn" title="Cancelar" onClick={cancelEdit}><X size={14} /></button>
+                    </>
+                  ) : (
+                    <button className="icon-btn" title="Editar texto" onClick={() => startEdit(t)}><Pencil size={14} /></button>
+                  )}
+                  <button className="icon-btn icon-danger" title="Excluir função" onClick={() => onRemove(t.id)}><Trash2 size={14} /></button>
+                </div>
+                {temResponsavel && (
+                  <ChecklistMultiResponsavelPicker value={getTplResponsaveis(t)} onChange={(arr) => onSetResponsaveis(t.id, arr)} />
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="muted-sm">Desmarcar a caixinha ou apagar com a lixeira também remove a pendência dessa função no checklist de hoje (o histórico do que já foi feito não é afetado).</div>
+        </div>
+        <div className="modal-foot"><button className="btn-primary" onClick={onClose}>Concluído</button></div>
+      </div>
+    </div>
+  );
+}
+
+/* Aviso antecipado (avisar hoje que não vai conseguir cumprir a função), com botão explícito
+   de "Salvar" — para deixar claro que o aviso foi enviado — e de "Remover", para o caso do
+   militar contornar o impedimento e conseguir cumprir a missão normalmente. */
+function ChecklistAvisoAntecipado({ item, onSave, onRemove }) {
+  const [editing, setEditing] = useState(!item.observacao);
+  const [draft, setDraft] = useState(item.observacao || "");
+
+  const salvar = () => {
+    const texto = draft.trim();
+    if (!texto) return;
+    onSave(texto);
+    setEditing(false);
+  };
+  const cancelar = () => {
+    if (!item.observacao) { onRemove(); return; }
+    setDraft(item.observacao);
+    setEditing(false);
+  };
+  const editar = () => { setDraft(item.observacao); setEditing(true); };
+
+  if (!editing) {
+    return (
+      <div className="checklist-obs-aviso">
+        <AlertTriangle size={11} /> <span>Aviso: {item.observacao}</span>
+        <button type="button" className="icon-btn" title="Editar aviso" onClick={editar}><Pencil size={12} /></button>
+        <button type="button" className="icon-btn icon-danger" title="Remover aviso (se já conseguir cumprir a missão)" onClick={onRemove}><Trash2 size={12} /></button>
+      </div>
+    );
+  }
+  return (
+    <div className="checklist-aviso-edit">
+      <textarea
+        autoFocus
+        className="checklist-obs-input"
+        rows={2}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Motivo de não conseguir fazer hoje (aviso antecipado)"
+      />
+      <div className="checklist-obs-actions">
+        <button type="button" className="btn-primary sm" onClick={salvar} disabled={!draft.trim()}>Salvar aviso</button>
+        <button type="button" className="btn-secondary sm" onClick={cancelar}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, responsavelAuto, onToggle, onObservacao, onResponsavel, onRemoveItem, onAddAvulsa, onGerenciar }) {
+  const hojeDate = parseBRDate(hojeStr);
+  const lista = itens.filter((it) => it.setor === setorKey);
+  const dataOf = (it) => parseBRDate(it.data);
+  const naoFeitos = lista.filter((it) => !it.feito);
+  const ativosPendentes = naoFeitos.filter((it) => !it.dispensada);
+  const dispensados = naoFeitos.filter((it) => it.dispensada);
+  const atrasadas = ativosPendentes.filter((it) => dataOf(it) && dataOf(it) < hojeDate).sort((a, b) => dataOf(a) - dataOf(b));
+  const atrasadasIds = new Set(atrasadas.map((it) => it.id));
+  const hoje = ativosPendentes.filter((it) => dataOf(it) && dataOf(it).getTime() === hojeDate.getTime());
+  const feitasHoje = lista.filter((it) => it.feito && it.data === hojeStr);
+  const totalHoje = hoje.length + feitasHoje.length;
+  const agrupaPorMilitar = setorKey !== "almoxarifado";
+
+  const [obsAbertos, setObsAbertos] = useState(() => new Set());
+  const abrirObs = (id) => setObsAbertos((prev) => { const n = new Set(prev); n.add(id); return n; });
+  const fecharObs = (it) => {
+    onObservacao(it, "");
+    setObsAbertos((prev) => { const n = new Set(prev); n.delete(it.id); return n; });
+  };
+
+  const renderItem = (it, atrasada) => {
+    if (it.dispensada) {
+      return (
+        <div key={it.id} className="checklist-item is-dispensada">
+          <div className="checklist-item-body">
+            <div className="checklist-item-texto" style={{ textDecoration: "line-through", opacity: .6 }}>{it.texto}</div>
+            <div className="checklist-item-meta">
+              <span className="checklist-tag-dispensada">Dispensada (Escala)</span>
+              <span className="muted-sm">{it.data}</span>
+            </div>
+            {it.dispensadaMotivo && <div className="muted-sm">{it.dispensadaMotivo}</div>}
+          </div>
+        </div>
+      );
+    }
+    const podeAvisarAntes = !it.feito && !atrasada && !visaoExterna;
+    const mostrarObs = (atrasada && !it.feito) || (!it.feito && !!it.observacao) || (podeAvisarAntes && obsAbertos.has(it.id));
+    return (
+      <div key={it.id} className={`checklist-item ${it.feito ? "is-done" : ""} ${atrasada ? "is-late" : ""}`}>
+        <label className="checklist-check">
+          <input type="checkbox" checked={it.feito} disabled={visaoExterna} onChange={() => onToggle(it)} />
+        </label>
+        <div className="checklist-item-body">
+          <div className="checklist-item-texto">{it.texto}</div>
+          <div className="checklist-item-meta">
+            {atrasada && !it.feito && <span className="checklist-tag-atraso">Pendente desde {it.data}</span>}
+            {it.avulsa && <span className="checklist-tag-avulsa">Avulsa</span>}
+            {it.coberturaDe && <span className="checklist-tag-cobertura">Cobrindo {it.coberturaDe}</span>}
+            {agrupaPorMilitar && !visaoExterna && (
+              <ChecklistResponsavelSelect className="checklist-resp-input" value={it.responsavel} onChange={(nome) => onResponsavel(it, nome)} />
+            )}
+          </div>
+          {mostrarObs ? (
+            visaoExterna ? (
+              it.observacao ? <div className="checklist-obs-view">{atrasada ? "Motivo" : "Aviso"}: {it.observacao}</div> : <div className="checklist-obs-falta"><AlertTriangle size={11} /> Sem justificativa registrada</div>
+            ) : atrasada ? (
+              <textarea
+                className="checklist-obs-input"
+                rows={2}
+                value={it.observacao}
+                onChange={(e) => onObservacao(it, e.target.value)}
+                placeholder="Motivo de não ter sido feito (obrigatório)"
+              />
+            ) : (
+              <ChecklistAvisoAntecipado
+                key={it.id}
+                item={it}
+                onSave={(texto) => onObservacao(it, texto)}
+                onRemove={() => fecharObs(it)}
+              />
+            )
+          ) : (
+            podeAvisarAntes && (
+              <button type="button" className="checklist-obs-toggle" onClick={() => abrirObs(it.id)}>+ Avisar que não vai conseguir fazer hoje</button>
+            )
+          )}
+        </div>
+        {!visaoExterna && (
+          <button className="icon-btn icon-danger checklist-item-del" title="Excluir esta tarefa" onClick={() => onRemoveItem(it)}><Trash2 size={13} /></button>
+        )}
+      </div>
+    );
+  };
+
+  const acoes = !visaoExterna && (
+    <div className="checklist-actions">
+      <button className="btn-secondary sm" onClick={onGerenciar}><ListChecks size={14} /> Gerenciar funções</button>
+      <button className="btn-primary sm" onClick={onAddAvulsa}><Plus size={14} /> Tarefa avulsa</button>
+    </div>
+  );
+
+  if (!agrupaPorMilitar) {
+    return (
+      <div className="panel checklist-panel">
+        <div className="checklist-head">
+          <div>
+            <h3 style={{ margin: 0 }}>{setorLabel}</h3>
+            {responsavelAuto && <div className="muted-sm">Responsável de hoje: <strong>{responsavelAuto}</strong> <span style={{ opacity: .7 }}>(via Escala)</span></div>}
+          </div>
+          <div className="checklist-counter">{feitasHoje.length} de {totalHoje} feitas hoje</div>
+        </div>
+
+        {atrasadas.length > 0 && (
+          <>
+            <div className="checklist-group-label checklist-group-late"><AlertTriangle size={13} /> Pendentes de dias anteriores ({atrasadas.length})</div>
+            {atrasadas.map((it) => renderItem(it, true))}
+          </>
+        )}
+
+        <div className="checklist-group-label">Hoje</div>
+        {hoje.length === 0 && feitasHoje.length === 0 && <div className="empty" style={{ color: "#C9C2B4" }}>Nenhuma tarefa cadastrada para hoje.</div>}
+        {hoje.map((it) => renderItem(it, false))}
+        {feitasHoje.map((it) => renderItem(it, false))}
+
+        {dispensados.length > 0 && (
+          <>
+            <div className="checklist-group-label">Dispensadas (Escala)</div>
+            {dispensados.map((it) => renderItem(it, false))}
+          </>
+        )}
+
+        {acoes}
+      </div>
+    );
+  }
+
+  // Seção B/4 e SEMAN: agrupado por militar responsável, para deixar claro quem faz o quê.
+  const todos = [...atrasadas, ...hoje, ...feitasHoje, ...dispensados];
+  const grupos = {};
+  todos.forEach((it) => {
+    const chave = it.responsavel && it.responsavel.trim() ? it.responsavel : "__sem__";
+    if (!grupos[chave]) grupos[chave] = [];
+    grupos[chave].push(it);
+  });
+  const nomes = Object.keys(grupos).filter((k) => k !== "__sem__").sort((a, b) => a.localeCompare(b, "pt-BR"));
+  if (grupos["__sem__"]) nomes.push("__sem__");
+
+  return (
+    <div className="panel checklist-panel">
+      <div className="checklist-head">
+        <div><h3 style={{ margin: 0 }}>{setorLabel}</h3></div>
+        <div className="checklist-counter">{feitasHoje.length} de {totalHoje} feitas hoje</div>
+      </div>
+
+      {todos.length === 0 && <div className="empty" style={{ color: "#C9C2B4", marginBottom: 12 }}>Nenhuma função cadastrada ainda. Use "Gerenciar funções" para começar.</div>}
+
+      {nomes.map((nome) => {
+        const itensDoMilitar = grupos[nome];
+        const acionaveis = itensDoMilitar.filter((it) => !it.dispensada);
+        const dispensadosDoMilitar = itensDoMilitar.filter((it) => it.dispensada);
+        const feitosCount = acionaveis.filter((it) => it.feito).length;
+        const semResp = nome === "__sem__";
+        const cor = corParaMilitar(semResp ? "" : nome);
+        return (
+          <div key={nome} className="checklist-person-group" style={{ borderLeftColor: cor.accent }}>
+            <div className="checklist-person-head" style={{ background: cor.bg }}>
+              <div className="checklist-person-id">
+                <span className="checklist-person-avatar" style={{ background: cor.accent }}>{semResp ? "?" : militarCodigo(nome)}</span>
+                <span className="checklist-person-name" style={{ color: cor.fg }}>{semResp ? "Sem responsável definido" : nome}</span>
+              </div>
+              <span className="checklist-person-counter">{feitosCount} de {acionaveis.length}</span>
+            </div>
+            <div className="checklist-person-body">
+              {acionaveis.map((it) => renderItem(it, atrasadasIds.has(it.id)))}
+              {dispensadosDoMilitar.map((it) => renderItem(it, false))}
+            </div>
+          </div>
+        );
+      })}
+
+      {acoes}
+    </div>
+  );
+}
+
 function PhotoLightbox({ src, onClose }) {
   return (
     <div className="lightbox-back" onClick={onClose}>
@@ -1384,8 +1862,10 @@ function App() {
   const [orcamentos, saveOrcamentos, readyOrcamentos] = useShared("b4-orcamentos", SEED_ORCAMENTOS);
   const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
+  const [checklistTemplates, saveChecklistTemplates, readyChecklistTemplates] = useShared("b4-checklist-templates", SEED_CHECKLIST_TEMPLATES);
+  const [checklistItens, saveChecklistItens, readyChecklistItens] = useShared("b4-checklist-itens", SEED_CHECKLIST_ITENS);
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "alertas"];
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) ? h : "geral";
@@ -1433,6 +1913,9 @@ function App() {
   const [editingEscalaOpen, setEditingEscalaOpen] = useState(false);
   const [escalaDefaultDate, setEscalaDefaultDate] = useState("");
   const [escalasSubTab, setEscalasSubTab] = useState("servico");
+  const [checklistSubTab, setChecklistSubTab] = useState("almoxarifado");
+  const [checklistAvulsaOpen, setChecklistAvulsaOpen] = useState(false);
+  const [checklistGerenciarOpen, setChecklistGerenciarOpen] = useState(false);
   const [editingExpediente, setEditingExpediente] = useState(null);
   const [editingExpedienteOpen, setEditingExpedienteOpen] = useState(false);
   const [expedienteDefaultDate, setExpedienteDefaultDate] = useState("");
@@ -1462,6 +1945,48 @@ function App() {
   const [mostrarOrcamentosProcessados, setMostrarOrcamentosProcessados] = useState(false);
   const [orcamentoBusca, setOrcamentoBusca] = useState("");
   const [cautelaBusca, setCautelaBusca] = useState("");
+
+  useEffect(() => {
+    if (!readyChecklistTemplates || !readyChecklistItens || !readyExpediente) return;
+    const t = new Date();
+    const hojeStrGer = `${String(t.getDate()).padStart(2, "0")}/${String(t.getMonth() + 1).padStart(2, "0")}/${t.getFullYear()}`;
+    const ativos = checklistTemplates.filter((tpl) => tpl.ativo);
+
+    // 1) gera as instâncias de hoje que ainda não existem, já escolhendo quem executa
+    //    conforme a Escala/Expediente do dia (evita "falso acúmulo" em cima de quem está
+    //    de Serviço Operacional, Almoxarifado do Dia, Folga, Férias ou Licença).
+    const faltando = ativos.filter((tpl) => {
+      const temAberto = checklistItens.some((it) => it.templateId === tpl.id && !it.feito);
+      const temHoje = checklistItens.some((it) => it.templateId === tpl.id && it.data === hojeStrGer);
+      return !temAberto && !temHoje;
+    });
+    const novos = faltando.map((tpl) => {
+      const esc = escolherResponsavelDoDia(expediente, tpl, hojeStrGer);
+      return {
+        id: uid(), setor: tpl.setor, templateId: tpl.id, texto: tpl.texto, data: hojeStrGer,
+        responsavel: esc.responsavel, feito: false, feitoEm: "", observacao: "", avulsa: false,
+        dispensada: esc.dispensada, dispensadaMotivo: esc.dispensadaMotivo, coberturaDe: esc.coberturaDe,
+      };
+    });
+
+    // 2) reconcilia pendências já existentes (de qualquer dia) contra a Escala: se o responsável
+    //    atual estava em outro serviço naquele dia, passa para um suplente disponível ou marca
+    //    como dispensada — sem exigir justificativa de algo que ele nem poderia ter feito.
+    let mudou = false;
+    const reconciliados = checklistItens.map((it) => {
+      if (it.feito || it.dispensada || !it.templateId || !it.responsavel) return it;
+      const tpl = checklistTemplates.find((x) => x.id === it.templateId);
+      if (!tpl) return it;
+      if (militarDisponivelNoDia(expediente, it.responsavel, it.data)) return it;
+      const esc = escolherResponsavelDoDia(expediente, tpl, it.data);
+      mudou = true;
+      return { ...it, responsavel: esc.responsavel, dispensada: esc.dispensada, dispensadaMotivo: esc.dispensadaMotivo, coberturaDe: esc.coberturaDe };
+    });
+
+    if (novos.length > 0 || mudou) {
+      saveChecklistItens([...(mudou ? reconciliados : checklistItens), ...novos]);
+    }
+  }, [readyChecklistTemplates, readyChecklistItens, readyExpediente, checklistTemplates, checklistItens, expediente]);
 
   const ready = readyV && readyE && readyP && readyEsc && readyOrg && readyChaves && readyChavesV && readyManut && readyCautelasEquip && readyAlertasDispensados && readyDemandas && readyOrcamentos && readyExpediente;
   if (!ready) return <div className="loading">Carregando dados compartilhados…</div>;
@@ -1595,6 +2120,55 @@ function App() {
     setEditingExpedienteOpen(false); setEditingExpediente(null);
   };
   const deleteExpediente = (e) => { askConfirm(`Remover expediente de ${e.militar} em ${e.data}?`, () => saveExpediente(expediente.filter((x) => x.id !== e.id))); };
+
+  /* ---- checklist do dia ---- */
+  const toggleChecklistItem = (item) => {
+    saveChecklistItens(checklistItens.map((it) => (it.id === item.id ? { ...it, feito: !it.feito, feitoEm: !it.feito ? new Date().toLocaleString("pt-BR") : "" } : it)));
+  };
+  const saveChecklistObservacao = (item, texto) => {
+    saveChecklistItens(checklistItens.map((it) => (it.id === item.id ? { ...it, observacao: texto } : it)));
+  };
+  const saveChecklistResponsavel = (item, nome) => {
+    saveChecklistItens(checklistItens.map((it) => (it.id === item.id ? { ...it, responsavel: nome } : it)));
+  };
+  const addChecklistAvulsa = (novoItem) => {
+    saveChecklistItens([...checklistItens, novoItem]);
+    setChecklistAvulsaOpen(false);
+  };
+  const addChecklistTemplate = (texto, responsaveis) => {
+    saveChecklistTemplates([...checklistTemplates, { id: uid(), setor: checklistSubTab, texto, ativo: true, responsaveis: responsaveis || [] }]);
+  };
+  const removeChecklistTemplate = (id) => {
+    saveChecklistTemplates(checklistTemplates.filter((t) => t.id !== id));
+    // remove também a pendência ainda aberta dessa função (o histórico do que já foi feito continua intacto)
+    saveChecklistItens(checklistItens.filter((it) => !(it.templateId === id && !it.feito)));
+  };
+  const removeChecklistItem = (item) => {
+    if (item.templateId) {
+      // Tarefa gerada por uma função fixa: apagar só a instância de hoje não resolve,
+      // pois ela seria recriada automaticamente enquanto a função existir em "Gerenciar funções".
+      // Por isso, excluir aqui remove a própria função (com o mesmo efeito cascata de lá).
+      askConfirm(`Excluir a função "${item.texto}"? Ela será removida de "Gerenciar funções" e não vai mais gerar tarefas nos próximos dias (o histórico do que já foi feito é mantido).`, () => removeChecklistTemplate(item.templateId));
+    } else {
+      askConfirm(`Excluir a tarefa "${item.texto}"?`, () => saveChecklistItens(checklistItens.filter((it) => it.id !== item.id)));
+    }
+  };
+  const toggleChecklistTemplate = (id) => {
+    const tpl = checklistTemplates.find((t) => t.id === id);
+    if (!tpl) return;
+    const novoAtivo = !tpl.ativo;
+    saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? { ...t, ativo: novoAtivo } : t)));
+    if (!novoAtivo) {
+      saveChecklistItens(checklistItens.filter((it) => !(it.templateId === id && !it.feito)));
+    }
+  };
+  const editChecklistTemplateTexto = (id, novoTexto) => {
+    saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? { ...t, texto: novoTexto } : t)));
+    saveChecklistItens(checklistItens.map((it) => (it.templateId === id && !it.feito ? { ...it, texto: novoTexto } : it)));
+  };
+  const setChecklistTemplateResponsaveis = (id, responsaveis) => {
+    saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? { ...t, responsaveis, responsavelPadrao: undefined } : t)));
+  };
 
   /* ---- chaves ---- */
   const findVeiculoById = (id) => viaturas.find((v) => v.id === id) || embarcacoes.find((v) => v.id === id);
@@ -1780,6 +2354,7 @@ function App() {
     demandas: "Controle de Viaturas e Embarcações",
     orcamentos: "Controle de Viaturas e Embarcações",
     escalas: "Controle de Viaturas e Embarcações",
+    checklist: "Checklist do Dia",
     alertas: "Controle de Viaturas e Embarcações",
   };
 
@@ -2359,6 +2934,39 @@ function App() {
               </>
             )}
 
+            {tab === "checklist" && (
+              <>
+                <h2 className="page-title">Checklist do Dia</h2>
+                <div className="muted-sm" style={{ marginBottom: 14 }}>Quem faz o quê, todo dia — marque o que foi feito e justifique o que ficou pendente · {hojeStr}</div>
+
+                <div className="toggle" style={{ marginBottom: 16 }}>
+                  {CHECKLIST_SETORES.map((s) => (
+                    <button key={s.key} className={checklistSubTab === s.key ? "toggle-btn active" : "toggle-btn"} onClick={() => setChecklistSubTab(s.key)}>{s.label}</button>
+                  ))}
+                </div>
+
+                {(() => {
+                  const setorAtual = CHECKLIST_SETORES.find((s) => s.key === checklistSubTab);
+                  return (
+                    <ChecklistPanel
+                      setorKey={setorAtual.key}
+                      setorLabel={setorAtual.label}
+                      itens={checklistItens}
+                      hojeStr={hojeStr}
+                      visaoExterna={visaoExterna}
+                      responsavelAuto={setorAtual.key === "almoxarifado" ? (responsavelHojeEsc?.militar || "") : ""}
+                      onToggle={toggleChecklistItem}
+                      onObservacao={saveChecklistObservacao}
+                      onResponsavel={saveChecklistResponsavel}
+                      onRemoveItem={removeChecklistItem}
+                      onAddAvulsa={() => setChecklistAvulsaOpen(true)}
+                      onGerenciar={() => setChecklistGerenciarOpen(true)}
+                    />
+                  );
+                })()}
+              </>
+            )}
+
             {tab === "alertas" && (
               <>
                 <h2 className="page-title">Alertas e Pendências</h2>
@@ -2457,6 +3065,28 @@ function App() {
       )}
       {editingEscalaOpen && <EscalaModal initial={editingEscala} defaultDate={escalaDefaultDate} onClose={() => { setEditingEscalaOpen(false); setEditingEscala(null); }} onSave={saveEscala} />}
       {editingExpedienteOpen && <ExpedienteModal initial={editingExpediente} defaultDate={expedienteDefaultDate} onClose={() => { setEditingExpedienteOpen(false); setEditingExpediente(null); }} onSave={saveExpedienteEntry} />}
+      {checklistAvulsaOpen && (
+        <ChecklistAvulsaModal
+          setor={checklistSubTab}
+          setorLabel={(CHECKLIST_SETORES.find((s) => s.key === checklistSubTab) || {}).label}
+          hojeStr={hojeStr}
+          onClose={() => setChecklistAvulsaOpen(false)}
+          onSave={addChecklistAvulsa}
+        />
+      )}
+      {checklistGerenciarOpen && (
+        <ChecklistGerenciarModal
+          setor={checklistSubTab}
+          setorLabel={(CHECKLIST_SETORES.find((s) => s.key === checklistSubTab) || {}).label}
+          templates={checklistTemplates}
+          onClose={() => setChecklistGerenciarOpen(false)}
+          onAdd={addChecklistTemplate}
+          onToggle={toggleChecklistTemplate}
+          onRemove={removeChecklistTemplate}
+          onEditTexto={editChecklistTemplateTexto}
+          onSetResponsaveis={setChecklistTemplateResponsaveis}
+        />
+      )}
       {editingOrgOpen && <OrgModal initial={org} onClose={() => setEditingOrgOpen(false)} onSave={(form) => { saveOrg(form); setEditingOrgOpen(false); }} />}
       {pendingConfirm && (
         <ConfirmModal
@@ -2727,6 +3357,58 @@ const CSS = `
 .chaves-filtros{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
 .chaves-filtro-input{flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;color:var(--ink);}
 .alertas-section-title{font-family:Georgia,serif;font-size:15px;margin:0 0 8px;color:var(--ink);}
+.checklist-panel{display:flex;flex-direction:column;gap:2px;}
+.checklist-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.checklist-counter{font-size:12.5px;font-weight:700;background:#F0EBE0;color:#6B6560;padding:5px 10px;border-radius:16px;white-space:nowrap;}
+.checklist-group-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin:14px 0 6px;}
+.checklist-group-late{color:#B23B3B;}
+.checklist-item{display:flex;align-items:flex-start;gap:10px;padding:10px 6px;border-bottom:1px solid #F0EBE0;}
+.checklist-item:last-child{border-bottom:none;}
+.checklist-item.is-late{background:#FBE3E3;border-radius:8px;padding:10px 10px;margin-bottom:4px;border-bottom:none;}
+.checklist-item.is-done .checklist-item-texto{color:#9C9488;text-decoration:line-through;}
+.checklist-check{padding-top:2px;}
+.checklist-check input{width:18px;height:18px;cursor:pointer;}
+.checklist-item-body{flex:1;min-width:0;}
+.checklist-item-texto{font-size:13.5px;color:var(--ink);line-height:1.4;}
+.checklist-item-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;}
+.checklist-tag-atraso{font-size:10.5px;font-weight:700;color:#B23B3B;background:#fff;padding:2px 7px;border-radius:10px;}
+.checklist-tag-avulsa{font-size:10.5px;font-weight:700;color:#2A5FA5;background:#E3EDFB;padding:2px 7px;border-radius:10px;}
+.checklist-item-del{flex-shrink:0;opacity:.55;}
+.checklist-item-del:hover{opacity:1;}
+.checklist-resp{font-size:11.5px;color:var(--muted);}
+.checklist-resp-input{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;color:var(--ink);min-width:160px;}
+.checklist-obs-view{font-size:12px;color:#B23B3B;margin-top:6px;font-style:italic;}
+.checklist-obs-aviso{display:flex;align-items:flex-start;gap:6px;color:#8A6D3B;background:#F5EFE3;padding:6px 8px;border-radius:8px;}
+.checklist-obs-aviso span{flex:1;}
+.checklist-obs-aviso .icon-btn{opacity:.7;flex-shrink:0;}
+.checklist-obs-aviso .icon-btn:hover{opacity:1;}
+.checklist-aviso-edit{margin-top:4px;}
+.checklist-obs-actions{display:flex;gap:8px;margin-top:6px;}
+.checklist-obs-falta{display:flex;align-items:center;gap:5px;font-size:11.5px;color:#B23B3B;font-weight:700;margin-top:6px;}
+.checklist-obs-input{width:100%;box-sizing:border-box;font-size:12.5px;padding:7px 9px;border:1px solid #E8A3A3;border-radius:8px;font-family:inherit;color:var(--ink);margin-top:6px;resize:vertical;}
+.checklist-actions{display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap;}
+.checklist-manage-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto;}
+.checklist-manage-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F0EBE0;font-size:13px;}
+.checklist-manage-row-full{justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.checklist-manage-resp{font-size:11.5px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-family:inherit;color:var(--ink);max-width:170px;}
+.checklist-person-group{border:1px solid var(--border);border-left:4px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.checklist-person-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;}
+.checklist-person-id{display:flex;align-items:center;gap:9px;min-width:0;}
+.checklist-person-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.checklist-person-name{font-family:Georgia,serif;font-size:14.5px;font-weight:700;}
+.checklist-person-counter{font-size:11px;font-weight:700;color:var(--muted);background:rgba(255,255,255,.7);padding:3px 9px;border-radius:12px;white-space:nowrap;}
+.checklist-person-body{padding:2px 12px 10px;}
+.checklist-item.is-dispensada{opacity:.75;}
+.checklist-tag-dispensada{font-size:10.5px;font-weight:700;color:#6B6560;background:#EFEAE0;padding:2px 7px;border-radius:10px;}
+.checklist-tag-cobertura{font-size:10.5px;font-weight:700;color:#57633A;background:#EEF2E4;padding:2px 7px;border-radius:10px;}
+.checklist-obs-toggle{border:none;background:none;padding:4px 0;margin-top:4px;font-size:11.5px;font-weight:700;color:#8A6D3B;cursor:pointer;text-decoration:underline;}
+.checklist-obs-toggle:hover{color:#B23B3B;}
+.checklist-multi-resp{display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+.checklist-chip-row{display:flex;flex-wrap:wrap;gap:6px;}
+.checklist-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;background:#F0EBE0;color:var(--ink);padding:4px 8px;border-radius:14px;}
+.checklist-chip button{border:none;background:none;padding:0;display:flex;align-items:center;color:#8A7F6E;cursor:pointer;}
+.checklist-chip button:hover{color:#B23B3B;}
+.checklist-chip-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#8A6D3B;}
 
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
@@ -2780,6 +3462,8 @@ const CSS = `
 
   .vcard-info{grid-template-columns:1fr 1fr;}
   .modal{max-width:100%;margin:0 8px;}
+  .checklist-resp-input{width:100%;min-width:0;}
+  .checklist-head{flex-direction:column;}
 }
 
 @media (max-width: 420px){
@@ -2789,10 +3473,7 @@ const CSS = `
 }
 `;
 
-
-/* ---------------- Montagem ---------------- */
-const __root = ReactDOM.createRoot(document.getElementById("root"));
-__root.render(React.createElement(App));
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>
 
 <script>
