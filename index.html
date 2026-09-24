@@ -199,6 +199,11 @@ const Menu = mkIcon([
   { tag: "path", attrs: { d: "M3 12h18" } },
   { tag: "path", attrs: { d: "M3 18h18" } },
 ]);
+const History = mkIcon([
+  { tag: "path", attrs: { d: "M3 12a9 9 0 1 0 3-6.7" } },
+  { tag: "path", attrs: { d: "M3 4v5h5" } },
+  { tag: "path", attrs: { d: "M12 7v5l4 2" } },
+]);
 
 const { useState, useEffect } = React;
 
@@ -1790,6 +1795,111 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
   );
 }
 
+const CHECKLIST_HIST_STATUS = [
+  { key: "feita", label: "Feita" },
+  { key: "dispensada", label: "Dispensada" },
+  { key: "motivo", label: "Pendente c/ motivo" },
+];
+function ChecklistHistorico({ itens, hojeStr }) {
+  const [busca, setBusca] = useState("");
+  const [setorFiltro, setSetorFiltro] = useState("");
+  const [militarFiltro, setMilitarFiltro] = useState("");
+  const [statusFiltro, setStatusFiltro] = useState("");
+  const [dataIni, setDataIni] = useState("");
+  const [dataFim, setDataFim] = useState("");
+
+  const registros = itens
+    .filter((it) => it.feito || it.dispensada || (!it.feito && !it.dispensada && !!it.observacao))
+    .map((it) => ({ ...it, _status: it.feito ? "feita" : it.dispensada ? "dispensada" : "motivo" }));
+
+  const militares = [...new Set(itens.map((it) => it.responsavel).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  const filtrados = registros
+    .filter((it) => {
+      if (setorFiltro && it.setor !== setorFiltro) return false;
+      if (militarFiltro && it.responsavel !== militarFiltro) return false;
+      if (statusFiltro && it._status !== statusFiltro) return false;
+      if (busca.trim()) {
+        const q = busca.trim().toLowerCase();
+        const alvo = `${it.texto} ${it.responsavel || ""} ${it.observacao || ""} ${it.dispensadaMotivo || ""}`.toLowerCase();
+        if (!alvo.includes(q)) return false;
+      }
+      const d = parseBRDate(it.data);
+      if (dataIni.trim()) { const di = parseBRDate(dataIni); if (di && d && d < di) return false; }
+      if (dataFim.trim()) { const df = parseBRDate(dataFim); if (df && d && d > df) return false; }
+      return true;
+    })
+    .sort((a, b) => {
+      const da = parseBRDate(a.data), db = parseBRDate(b.data);
+      if (da && db && da.getTime() !== db.getTime()) return db - da;
+      const ta = (a.feitoEm || "").split(", ")[1] || "";
+      const tb = (b.feitoEm || "").split(", ")[1] || "";
+      return tb.localeCompare(ta);
+    });
+
+  const limparFiltros = () => { setBusca(""); setSetorFiltro(""); setMilitarFiltro(""); setStatusFiltro(""); setDataIni(""); setDataFim(""); };
+  const temFiltroAtivo = !!(busca || setorFiltro || militarFiltro || statusFiltro || dataIni || dataFim);
+
+  return (
+    <div className="panel checklist-panel">
+      <div className="checklist-head">
+        <div>
+          <h3 style={{ margin: 0 }}>Histórico</h3>
+          <div className="muted-sm">Tudo que já foi feito, dispensado ou justificado no Checklist do Dia</div>
+        </div>
+        <div className="checklist-counter">{filtrados.length} registro{filtrados.length === 1 ? "" : "s"}</div>
+      </div>
+
+      <div className="checklist-hist-filtros">
+        <input className="chaves-filtro-input" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por tarefa, militar ou motivo..." style={{ flex: "1 1 220px" }} />
+        <select className="checklist-manage-resp" value={setorFiltro} onChange={(e) => setSetorFiltro(e.target.value)}>
+          <option value="">Todos os setores</option>
+          {CHECKLIST_SETORES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <select className="checklist-manage-resp" value={militarFiltro} onChange={(e) => setMilitarFiltro(e.target.value)}>
+          <option value="">Todos os militares</option>
+          {militares.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <select className="checklist-manage-resp" value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value)}>
+          <option value="">Todas as situações</option>
+          {CHECKLIST_HIST_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <input className="chaves-filtro-input" value={dataIni} onChange={(e) => setDataIni(e.target.value)} placeholder="De: dd/mm/aaaa" style={{ maxWidth: 130 }} />
+        <input className="chaves-filtro-input" value={dataFim} onChange={(e) => setDataFim(e.target.value)} placeholder="Até: dd/mm/aaaa" style={{ maxWidth: 130 }} />
+        {temFiltroAtivo && <button type="button" className="btn-secondary sm" onClick={limparFiltros}>Limpar filtros</button>}
+      </div>
+
+      {filtrados.length === 0 && (
+        <div className="empty" style={{ color: "#C9C2B4" }}>
+          {registros.length === 0 ? "Ainda não há histórico registrado." : "Nenhum registro encontrado com esses filtros."}
+        </div>
+      )}
+
+      {filtrados.map((it) => {
+        const setorLabel = (CHECKLIST_SETORES.find((s) => s.key === it.setor) || {}).label || it.setor;
+        const cor = corParaMilitar(it.responsavel || "");
+        return (
+          <div key={it.id} className="checklist-hist-row" style={{ borderLeftColor: cor.accent }}>
+            <div className="checklist-hist-main">
+              <div className="checklist-hist-texto">{it.texto}</div>
+              <div className="checklist-item-meta">
+                <span className="pill" style={{ background: cor.bg, color: cor.fg }}>{setorLabel}</span>
+                {it._status === "feita" && <span className="checklist-tag-feita">Feita{it.feitoEm ? ` em ${it.feitoEm}` : ""}</span>}
+                {it._status === "dispensada" && <span className="checklist-tag-dispensada">Dispensada · {it.data}</span>}
+                {it._status === "motivo" && <span className="checklist-tag-atraso">Pendente · {it.data}</span>}
+                {it.avulsa && <span className="checklist-tag-avulsa">Avulsa</span>}
+                {it.responsavel && <span className="muted-sm">{it.responsavel}</span>}
+              </div>
+              {it._status === "dispensada" && it.dispensadaMotivo && <div className="muted-sm" style={{ marginTop: 4 }}>{it.dispensadaMotivo}</div>}
+              {it.observacao && it._status !== "dispensada" && <div className="muted-sm" style={{ marginTop: 4 }}>Motivo: {it.observacao}</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PhotoLightbox({ src, onClose }) {
   return (
     <div className="lightbox-back" onClick={onClose}>
@@ -2958,9 +3068,12 @@ function App() {
                   {CHECKLIST_SETORES.map((s) => (
                     <button key={s.key} className={checklistSubTab === s.key ? "toggle-btn active" : "toggle-btn"} onClick={() => setChecklistSubTab(s.key)}>{s.label}</button>
                   ))}
+                  <button className={checklistSubTab === "historico" ? "toggle-btn active" : "toggle-btn"} onClick={() => setChecklistSubTab("historico")}><History size={13} /> Histórico</button>
                 </div>
 
-                {(() => {
+                {checklistSubTab === "historico" ? (
+                  <ChecklistHistorico itens={checklistItens} hojeStr={hojeStr} />
+                ) : (() => {
                   const setorAtual = CHECKLIST_SETORES.find((s) => s.key === checklistSubTab);
                   return (
                     <ChecklistPanel
@@ -3418,6 +3531,12 @@ const CSS = `
 .checklist-person-body{padding:2px 12px 10px;}
 .checklist-item.is-dispensada{opacity:.75;}
 .checklist-tag-dispensada{font-size:10.5px;font-weight:700;color:#6B6560;background:#EFEAE0;padding:2px 7px;border-radius:10px;}
+.checklist-tag-feita{font-size:10.5px;font-weight:700;color:#2F7D4F;background:#E4F3E9;padding:2px 7px;border-radius:10px;}
+.checklist-hist-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 16px;}
+.checklist-hist-row{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #F0EBE0;border-left:3px solid transparent;}
+.checklist-hist-row:last-child{border-bottom:none;}
+.checklist-hist-main{flex:1;min-width:0;}
+.checklist-hist-texto{font-size:13.5px;color:var(--ink);line-height:1.4;margin-bottom:4px;}
 .checklist-tag-cobertura{font-size:10.5px;font-weight:700;color:#57633A;background:#EEF2E4;padding:2px 7px;border-radius:10px;}
 .checklist-obs-toggle{border:none;background:none;padding:4px 0;margin-top:4px;font-size:11.5px;font-weight:700;color:#8A6D3B;cursor:pointer;text-decoration:underline;}
 .checklist-obs-toggle:hover{color:#B23B3B;}
