@@ -2924,12 +2924,11 @@ function App() {
                       const esc = escalaByDate[dateStr];
                       const cellDate = new Date(calYear, calMonth, d);
                       const isToday = sameDate(cellDate, today);
-                      const isWeekend = cellDate.getDay() === 0 || cellDate.getDay() === 6;
-                      const isFuturePending = !esc && !isWeekend && cellDate >= new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                      const isFuturePending = !esc && cellDate >= new Date(today.getFullYear(), today.getMonth(), today.getDate());
                       return (
                         <div key={idx} className={`cal-cell ${isToday ? "is-today" : ""} ${isFuturePending ? "is-pending" : ""}`}
                           title={esc?.obs || ""}
-                          onClick={() => !visaoExterna && !isWeekend && (() => { setEditingEscala(esc || null); setEscalaDefaultDate(dateStr); setEditingEscalaOpen(true); })()}>
+                          onClick={() => !visaoExterna && (() => { setEditingEscala(esc || null); setEscalaDefaultDate(dateStr); setEditingEscalaOpen(true); })()}>
                           <div className="cal-daynum">{d}</div>
                           {esc?.obs && <div className="cal-obs-dot" title={esc.obs} />}
                           {esc ? <div className="cal-code">{militarCodigo(esc.militar)}</div> : isFuturePending ? <div className="cal-pending">Pendente</div> : null}
