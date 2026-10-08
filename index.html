@@ -704,7 +704,7 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
           <div className="vcard-info-row"><span className="vcard-info-k">Capacidade</span><span className="vcard-info-v">{v.capacidade > 0 ? `${v.capacidade} L` : "—"}</span></div>
           <div className="vcard-info-row"><span className="vcard-info-k">Engate</span><span className="vcard-info-v">{v.engate}</span></div>
           <div className="vcard-info-row"><span className="vcard-info-k">Equipada</span><span className="vcard-info-v" style={{ color: v.equipada === "Sim" ? "#0E9F5B" : "#E01E3C" }}>{v.equipada || "Não"}</span></div>
-          <div className="vcard-info-row"><span className="vcard-info-k">Chassi</span><span className="vcard-info-v">{v.chassi || "—"}</span></div>
+          <div className="vcard-info-row vcard-info-wide"><span className="vcard-info-k">Chassi</span><span className="vcard-info-v">{v.chassi || "—"}</span></div>
         </div>
         <div className="vcard-actions">
           <button className="btn-ghost" onClick={() => onReport(v)}><AlertTriangle size={13} /> Reportar problema</button>
@@ -4207,10 +4207,11 @@ const CSS = `
 .link-btn.sm{font-size:11px;display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:#8A4B12;font-weight:600;cursor:pointer;padding:0;}
 .link-btn.sm:hover{text-decoration:underline;}
 .vcard-sub{font-size:12px;color:var(--muted);margin:6px 0 10px;}
-.vcard-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0 10px;}
+.vcard-info{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;margin:8px 0 10px;}
+.vcard-info-wide{grid-column:1 / -1;}
 .vcard-info-row{display:flex;justify-content:space-between;gap:6px;font-size:11px;border-bottom:1px dotted var(--border);padding-bottom:2px;}
-.vcard-info-k{color:var(--muted);}
-.vcard-info-v{font-weight:700;text-align:right;}
+.vcard-info-k{color:var(--muted);flex-shrink:0;}
+.vcard-info-v{font-weight:700;text-align:right;min-width:0;overflow-wrap:anywhere;}
 .vcard-actions{display:flex;justify-content:space-between;align-items:center;}
 .btn-ghost{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:11px;color:var(--red-dark);display:flex;align-items:center;gap:4px;cursor:pointer;}
 .btn-ghost:hover{background:#FFE2E6;}
@@ -4496,7 +4497,7 @@ const CSS = `
   .table-panel{overflow-x:auto;}
   .esc-head,.esc-row{min-width:420px;}
 
-  .vcard-info{grid-template-columns:1fr 1fr;}
+  .vcard-info{grid-template-columns:repeat(2,minmax(0,1fr));}
   .modal{max-width:100%;margin:0 8px;}
   .checklist-resp-input{width:100%;min-width:0;}
   .checklist-head{flex-direction:column;}
