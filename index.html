@@ -614,8 +614,46 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
   );
 }
 
+/* ---------------- Brasão sem fundo branco ---------------- */
+function useBrasaoSemFundo(src) {
+  const [out, setOut] = useState(null);
+  useEffect(() => {
+    if (!src) { setOut(null); return; }
+    let cancelado = false;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const esc = Math.min(1, 420 / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * esc)), h = Math.max(1, Math.round(img.height * esc));
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, w, h);
+        const im = ctx.getImageData(0, 0, w, h), d = im.data;
+        const claro = (i) => d[i + 3] < 10 || (d[i] > 232 && d[i + 1] > 232 && d[i + 2] > 232);
+        const vis = new Uint8Array(w * h), pilha = [];
+        const push = (x, y) => { if (x < 0 || y < 0 || x >= w || y >= h) return; const k = y * w + x; if (vis[k]) return; if (!claro(k * 4)) return; vis[k] = 1; pilha.push(k); };
+        for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+        for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+        while (pilha.length) { const k = pilha.pop(), x = k % w, y = (k - x) / w; push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1); }
+        for (let k = 0; k < w * h; k++) if (vis[k]) d[k * 4 + 3] = 0;
+        // suaviza a borda: pixels claros vizinhos do fundo ficam semitransparentes
+        for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+          const k = y * w + x; if (vis[k]) continue;
+          if (vis[k - 1] || vis[k + 1] || vis[k - w] || vis[k + w]) { const i = k * 4; const lum = (d[i] + d[i + 1] + d[i + 2]) / 3; if (lum > 190) d[i + 3] = Math.round(255 * (255 - lum) / 65); }
+        }
+        ctx.putImageData(im, 0, 0);
+        if (!cancelado) setOut(c.toDataURL("image/png"));
+      } catch (e) { if (!cancelado) setOut(src); }
+    };
+    img.onerror = () => { if (!cancelado) setOut(src); };
+    img.src = src;
+    return () => { cancelado = true; };
+  }, [src]);
+  return out;
+}
+
 /* ---------------- Header ---------------- */
 function Header({ subtitle, org, onEditOrg, onMenuClick, visaoExterna, onUnlockClick, onLock }) {
+  const brasaoLimpo = useBrasaoSemFundo(org.brasao);
   return (
     <header className="header">
       <div className="header-left">
@@ -643,6 +681,7 @@ function Header({ subtitle, org, onEditOrg, onMenuClick, visaoExterna, onUnlockC
           </div>
           {!visaoExterna && <button className="icon-btn" onClick={onEditOrg} title="Editar responsável"><Pencil size={13} /></button>}
         </div>
+        {brasaoLimpo && <img className="header-brasao" src={brasaoLimpo} alt="Brasão 1º BBM" />}
       </div>
     </header>
   );
@@ -1689,7 +1728,7 @@ const CHECKLIST_DIA_CORES = [
   { nome: "Terça-feira", curto: "Ter", accent: "#0E9F5B", bg: "#E9FAF1", borda: "#B5EBCF" },
   { nome: "Quarta-feira", curto: "Qua", accent: "#F59E0B", bg: "#FFF6DF", borda: "#FFDD8A" },
   { nome: "Quinta-feira", curto: "Qui", accent: "#7C3AED", bg: "#F3EDFF", borda: "#D7C6FA" },
-  { nome: "Sexta-feira", curto: "Sex", accent: "#E5192E", bg: "#FFEDEF", borda: "#FFC2C9" },
+  { nome: "Sexta-feira", curto: "Sex", accent: "#DB2777", bg: "#FDEEF5", borda: "#F6C3DA" },
   { nome: "Sábado", curto: "Sáb", accent: "#0891B2", bg: "#E6F8FC", borda: "#B3E6F2" },
   { nome: "Domingo", curto: "Dom", accent: "#EA580C", bg: "#FFF0E4", borda: "#FFCFAA" },
 ];
@@ -2705,6 +2744,7 @@ function App() {
   const [orcamentos, saveOrcamentos, readyOrcamentos] = useShared("b4-orcamentos", SEED_ORCAMENTOS);
   const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
+  const brasaoMarca = useBrasaoSemFundo(org.brasao);
   const [checklistTemplates, saveChecklistTemplates, readyChecklistTemplates] = useShared("b4-checklist-templates", SEED_CHECKLIST_TEMPLATES);
   const [checklistItens, saveChecklistItens, readyChecklistItens] = useShared("b4-checklist-itens", SEED_CHECKLIST_ITENS);
   const [salvamarRegistros, saveSalvamarRegistros, readySalvamarRegistros] = useShared("b4-salvamar-registros", []);
@@ -3256,7 +3296,7 @@ function App() {
         <Sidebar tab={tab} setTab={setTab} org={org} onLogoChange={handleLogoChange} visaoExterna={visaoExterna} open={sidebarOpen} onClose={() => setSidebarOpen(false)} onBackup={handleBackup} onRestoreFile={handleRestoreFile} />
         <div className="main-col">
           <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} visaoExterna={visaoExterna} onUnlockClick={() => setUnlockModalOpen(true)} onLock={lockEdit} />
-          <main className="content">
+          <main className="content" style={brasaoMarca ? { "--brasao-url": `url(${brasaoMarca})` } : undefined}>
 
             {tab === "geral" && (
               <>
@@ -4450,6 +4490,10 @@ const CSS = `
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
 .header-left{display:flex;align-items:center;gap:10px;min-width:0;}
+.header-brasao{height:58px;width:auto;max-width:64px;object-fit:contain;flex-shrink:0;background:none;border:0;border-radius:0;box-shadow:none;filter:drop-shadow(0 3px 5px rgba(15,23,42,.28));}
+.content{position:relative;}
+.content::before{content:"";position:fixed;right:24px;bottom:16px;width:260px;height:260px;background:var(--brasao-url,none) no-repeat center/contain;opacity:.05;pointer-events:none;z-index:0;}
+@media (max-width:700px){.header .header-right{position:static;}.header-brasao{position:absolute;top:8px;right:12px;height:42px;max-width:46px;}.header-left{padding-right:52px;}.content::before{width:160px;height:160px;}}
 .sidebar-overlay{display:none;}
 .sidebar-close{display:none;}
 
@@ -4509,7 +4553,7 @@ const CSS = `
   .ov-num{font-size:22px;}
 }
 /* ===== Tema "Chama" — visual novo (vermelho, amarelo e branco + azul/ciano) ===== */
-.app-shell{background:radial-gradient(900px 380px at 100% -60px,rgba(255,184,0,.16),transparent 70%),radial-gradient(800px 360px at 18% -80px,rgba(229,25,46,.07),transparent 70%),var(--bg);-webkit-font-smoothing:antialiased;}
+.app-shell{background:radial-gradient(900px 380px at 100% -60px,rgba(37,99,235,.08),transparent 70%),radial-gradient(800px 360px at 10% -80px,rgba(255,184,0,.10),transparent 70%),var(--bg);-webkit-font-smoothing:antialiased;}
 .topstrip{height:4px;background:linear-gradient(90deg,#A80E20,#D71A2B 55%,#FFC21A 92%);}
 .sidebar{background:linear-gradient(180deg,#0B1230 0%,#101A44 55%,#0B1230 100%);border-right:1px solid rgba(255,255,255,.06);}
 .brand-mark{box-shadow:0 0 0 2px rgba(255,194,26,.55),0 8px 20px -6px rgba(229,25,46,.6);}
@@ -4521,7 +4565,7 @@ const CSS = `
 .nav-subitem.active{background:rgba(229,25,46,.45);}
 .backup-btn{border-color:rgba(255,255,255,.14);border-radius:10px;}
 .backup-btn:hover{background:rgba(255,255,255,.07);}
-.header{position:sticky;top:0;z-index:30;background:linear-gradient(105deg,#A80E20 0%,#C8102E 45%,#DC1B2F 100%);color:#fff;border-bottom:none;box-shadow:0 10px 30px -14px rgba(168,14,32,.7);overflow:hidden;}
+.header{position:sticky;top:0;z-index:30;background:linear-gradient(100deg,#A80E20 0%,#C8102E 45%,#DC1B2F 78%,#E8A91C 118%);color:#fff;border-bottom:none;box-shadow:0 10px 30px -14px rgba(168,14,32,.7);overflow:hidden;}
 .header::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.22) 1px,transparent 1.4px);background-size:16px 16px;mask-image:linear-gradient(100deg,transparent 30%,#000 100%);-webkit-mask-image:linear-gradient(100deg,transparent 30%,#000 100%);pointer-events:none;}
 .header>*{position:relative;}
 .header h1{font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;color:#fff;}
@@ -4534,8 +4578,7 @@ const CSS = `
 .header .toggle{background:rgba(255,255,255,.2);backdrop-filter:blur(6px);}
 .header .toggle-btn{color:rgba(255,255,255,.9);}
 .header .toggle-btn.active{background:#fff;color:#C4122A;box-shadow:0 4px 10px -4px rgba(0,0,0,.3);}
-.toggle-btn.active{background:linear-gradient(100deg,#C8102E,#E5192E);color:#fff;}
-.user-avatar{background:#FFC21A;color:#5A3A00;box-shadow:0 0 0 2px rgba(255,255,255,.7);}
+.user-avatar{background:#12204A;color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.7);}
 .user-name{color:#fff;}
 .user-role{color:rgba(255,255,255,.85);}
 .icon-btn{color:inherit;}
@@ -4548,11 +4591,11 @@ const CSS = `
 .ov-num{font-family:var(--font-display);letter-spacing:-.02em;}
 .ov-icon{border-radius:12px;}
 .panel-headrow h3,.modal-head h3{font-family:var(--font-display);letter-spacing:-.01em;}
-.btn-primary{background:linear-gradient(100deg,#C8102E,#E5192E);border-radius:10px;box-shadow:0 8px 18px -8px rgba(229,25,46,.8);font-weight:700;transition:transform .12s,box-shadow .12s;}
-.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 22px -8px rgba(229,25,46,.9);}
+.btn-primary{background:linear-gradient(100deg,#1E4FD8,#2563EB);border-radius:10px;box-shadow:0 8px 18px -8px rgba(37,99,235,.7);font-weight:700;transition:transform .12s,box-shadow .12s;}
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 22px -8px rgba(37,99,235,.85);}
 .btn-secondary{background:#fff;border-radius:10px;font-weight:700;transition:border-color .12s,background .12s,transform .12s;}
 .btn-secondary:hover{border-color:#FFB800;background:#FFFBEF;}
-.link-btn{color:#E5192E;}
+.link-btn{color:#2563EB;}
 .pill{font-weight:800;letter-spacing:.01em;}
 .modal{border-radius:18px;box-shadow:0 30px 80px -20px rgba(11,18,48,.55);}
 .modal-back{background:rgba(11,18,48,.55);backdrop-filter:blur(4px);}
@@ -4571,7 +4614,7 @@ button:focus-visible{outline:2px solid #2563EB;outline-offset:2px;}
 .semana-dia.hoje{box-shadow:0 0 0 2px var(--dia-accent),0 14px 30px -14px var(--dia-accent);}
 .tabs,.checklist-tabs{border-radius:14px;}
 /* hoje: destaque vivo mesmo quando a escala ainda está pendente */
-.cal-cell.is-today,.cal-cell.is-today.is-pending{background:linear-gradient(135deg,#C8102E,#E5192E);border:1px solid #E5192E;box-shadow:0 10px 22px -10px rgba(229,25,46,.8);}
+.cal-cell.is-today,.cal-cell.is-today.is-pending{background:linear-gradient(135deg,#1E4FD8,#2563EB);border:1px solid #2563EB;box-shadow:0 10px 22px -10px rgba(37,99,235,.8);}
 .cal-cell.is-today .cal-pending{color:#fff;}
 @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 
