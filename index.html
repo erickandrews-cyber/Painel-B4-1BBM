@@ -199,6 +199,14 @@ const Menu = mkIcon([
   { tag: "path", attrs: { d: "M3 12h18" } },
   { tag: "path", attrs: { d: "M3 18h18" } },
 ]);
+const LifeBuoy = mkIcon([
+  { tag: "circle", attrs: { cx: 12, cy: 12, r: 10 } },
+  { tag: "circle", attrs: { cx: 12, cy: 12, r: 4 } },
+  { tag: "path", attrs: { d: "M4.93 4.93l4.24 4.24" } },
+  { tag: "path", attrs: { d: "M14.83 9.17l4.24-4.24" } },
+  { tag: "path", attrs: { d: "M14.83 14.83l4.24 4.24" } },
+  { tag: "path", attrs: { d: "M9.17 14.83l-4.24 4.24" } },
+]);
 const History = mkIcon([
   { tag: "path", attrs: { d: "M3 12a9 9 0 1 0 3-6.7" } },
   { tag: "path", attrs: { d: "M3 4v5h5" } },
@@ -364,6 +372,15 @@ function getTplResponsaveis(tpl) {
   if (Array.isArray(tpl.responsaveis) && tpl.responsaveis.length) return tpl.responsaveis.filter(Boolean);
   if (tpl.responsavelPadrao) return [tpl.responsavelPadrao];
   return [];
+}
+const CHECKLIST_DIAS_UTEIS = [1, 2, 3, 4, 5];
+const CHECKLIST_DIAS_TODOS = [0, 1, 2, 3, 4, 5, 6];
+function checklistDiasDoSetor(setor) { return setor === "almoxarifado" ? CHECKLIST_DIAS_TODOS : CHECKLIST_DIAS_UTEIS; }
+/* A função vale nesse dia? B/4 e SEMAN só funcionam de segunda a sexta; "dias" vazio = todos os dias do setor. */
+function tplAplicaNoDia(tpl, date) {
+  const dow = date.getDay();
+  if (!checklistDiasDoSetor(tpl.setor).includes(dow)) return false;
+  return !(Array.isArray(tpl.dias) && tpl.dias.length) || tpl.dias.includes(dow);
 }
 function statusExpedienteDoDia(expediente, nome, dataStr) {
   if (!nome) return null;
@@ -566,6 +583,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           {item("geral", "Visão Geral", LayoutGrid)}
           {item("viaturas", "Viaturas", Truck)}
           {item("embarcacoes", "Embarcações", Anchor)}
+          {item("salvamar", "SALVAMAR", LifeBuoy)}
           {item("chaves", "Chaves", Key)}
           {item("manutencao", "Manutenção", Wrench)}
           {item("cautelas", "Cautelas", ClipboardList)}
@@ -669,7 +687,7 @@ function VehicleCard({ v, problemCount, onEdit, onDelete, onReport, onPhoto, onR
         <div className="vcard-title-row">
           <div>
             <div className="vcard-name">{v.nome}</div>
-            <div className="vcard-type">{v.tipo}</div>
+            <div className="vcard-type">{v.tipo}{v.salvamar && <span className="salvamar-tag">SALVAMAR</span>}</div>
           </div>
           {problemCount > 0 && (
             <button className="pcount pcount-btn" title="Ver problemas reportados" onClick={() => onViewProblems(v)}>
@@ -1485,18 +1503,41 @@ function ChecklistMultiResponsavelPicker({ value, onChange }) {
   );
 }
 
-function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd, onToggle, onRemove, onEditTexto, onSetResponsaveis }) {
+function ChecklistDiasPicker({ value, onChange, setor }) {
+  const permitidos = checklistDiasDoSetor(setor);
+  const sel = Array.isArray(value) ? value : [];
+  const alternar = (d) => {
+    const novo = sel.includes(d) ? sel.filter((x) => x !== d) : [...sel, d];
+    onChange(novo.length === permitidos.length ? [] : novo.sort((a, b) => a - b));
+  };
+  const todos = sel.length === 0;
+  return (
+    <div className="dias-picker">
+      <button type="button" className={`dias-chip dias-chip-todos ${todos ? "on" : ""}`} onClick={() => onChange([])}>Todos os dias{setor === "almoxarifado" ? "" : " úteis"}</button>
+      {permitidos.map((d) => {
+        const cor = CHECKLIST_DIA_CORES[(d + 6) % 7];
+        const on = sel.includes(d);
+        return (
+          <button key={d} type="button" className={`dias-chip ${on ? "on" : ""}`} style={{ "--dia-accent": cor.accent }} onClick={() => alternar(d)} title={cor.nome}>{WEEKDAYS[d]}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd, onToggle, onRemove, onEditTexto, onSetResponsaveis, onSetDias }) {
   const temResponsavel = setor !== "almoxarifado";
   const [novo, setNovo] = useState("");
   const [novoResps, setNovoResps] = useState([]);
+  const [novoDias, setNovoDias] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [editingTexto, setEditingTexto] = useState("");
   const lista = templates.filter((t) => t.setor === setor);
 
   const add = () => {
     if (!novo.trim()) return;
-    onAdd(novo.trim(), novoResps);
-    setNovo(""); setNovoResps([]);
+    onAdd(novo.trim(), novoResps, novoDias);
+    setNovo(""); setNovoResps([]); setNovoDias([]);
   };
   const startEdit = (t) => { setEditingId(t.id); setEditingTexto(t.texto); };
   const confirmEdit = () => {
@@ -1521,6 +1562,10 @@ function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd,
           {temResponsavel && (
             <div className="muted-sm">Adicionando mais de um militar: se o principal estiver de Serviço Operacional, Almoxarifado do Dia, Folga, Férias ou Licença no dia (conforme a Escala), a função passa automaticamente para o próximo da lista. Se todos estiverem indisponíveis, ela aparece como "Dispensada".</div>
           )}
+          <label>Dia(s) da semana em que essa função vale
+            <ChecklistDiasPicker value={novoDias} onChange={setNovoDias} setor={setor} />
+          </label>
+          <div className="muted-sm">{setor === "almoxarifado" ? "Sem escolher nenhum dia, a função aparece todos os dias." : "A Seção B/4 e a SEMAN só funcionam de segunda a sexta. Sem escolher nenhum dia, a função aparece em todos os dias úteis."}</div>
           <button className="btn-primary sm" onClick={add} disabled={!novo.trim()} style={{ alignSelf: "flex-start" }}><Plus size={14} /> Adicionar função</button>
 
           <div className="checklist-manage-list" style={{ marginTop: 6 }}>
@@ -1553,6 +1598,7 @@ function ChecklistGerenciarModal({ setor, setorLabel, templates, onClose, onAdd,
                 {temResponsavel && (
                   <ChecklistMultiResponsavelPicker value={getTplResponsaveis(t)} onChange={(arr) => onSetResponsaveis(t.id, arr)} />
                 )}
+                <ChecklistDiasPicker value={t.dias} onChange={(arr) => onSetDias(t.id, arr)} setor={setor} />
               </div>
             ))}
           </div>
@@ -1614,7 +1660,135 @@ function ChecklistJustificativa({ item, onSave, onRemove, obrigatorio }) {
   );
 }
 
-function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, responsavelAuto, onToggle, onObservacao, onResponsavel, onRemoveItem, onAddAvulsa, onGerenciar }) {
+function ChecklistHeader({ titulo, sub, feitas, total }) {
+  const completo = total > 0 && feitas >= total;
+  return (
+    <div className="checklist-hero">
+      <div className="salv-lembretes-titulo">
+        <span className="salv-lembretes-icon"><ListChecks size={18} /></span>
+        <div>
+          <h3 style={{ margin: 0 }}>{titulo}</h3>
+          {sub}
+        </div>
+      </div>
+      <div className="checklist-hero-prog">
+        <div className="salv-prog">
+          <div className="salv-prog-bar"><div className="salv-prog-fill" style={{ width: `${total ? Math.round((feitas / total) * 100) : 0}%` }} /></div>
+          <span className="salv-prog-txt">{feitas} de {total} feitas hoje{completo ? " · tudo em dia! ✔" : ""}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CHECKLIST_DIA_CORES = [
+  { nome: "Segunda-feira", curto: "Seg", accent: "#2A5FA5", bg: "#EEF4FC", borda: "#C9DBF2" },
+  { nome: "Terça-feira", curto: "Ter", accent: "#2F7D4F", bg: "#EEF7F1", borda: "#C6E2D1" },
+  { nome: "Quarta-feira", curto: "Qua", accent: "#B8761B", bg: "#FCF4E6", borda: "#EBD3A6" },
+  { nome: "Quinta-feira", curto: "Qui", accent: "#7B4FA3", bg: "#F5EFFA", borda: "#DACAEA" },
+  { nome: "Sexta-feira", curto: "Sex", accent: "#B23B6B", bg: "#FBEFF4", borda: "#EBC6D6" },
+  { nome: "Sábado", curto: "Sáb", accent: "#1F8A8A", bg: "#ECF7F7", borda: "#BFE1E1" },
+  { nome: "Domingo", curto: "Dom", accent: "#A51C30", bg: "#FAEEF0", borda: "#E8C1C7" },
+];
+
+function ChecklistSemana({ itens, templates, setorKey, hojeStr }) {
+  const [offset, setOffset] = useState(0);
+  const hojeDate = parseBRDate(hojeStr);
+  const dow = (hojeDate.getDay() + 6) % 7; // segunda = 0
+  const inicio = new Date(hojeDate.getFullYear(), hojeDate.getMonth(), hojeDate.getDate() - dow + offset * 7);
+  const fmt = (d) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  const curto = (d) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const dias = Array.from({ length: 5 }, (_, i) => new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i));
+  const fim = dias[4];
+  const lista = itens.filter((it) => it.setor === setorKey);
+  const agrupaPorMilitar = setorKey !== "almoxarifado";
+
+  const glifo = (it, d) => {
+    if (it.feito) return <span className="semana-g semana-g-ok"><CheckCircle2 size={13} /></span>;
+    if (it.dispensada) return <span className="semana-g semana-g-disp" title="Dispensada (Escala)">–</span>;
+    if (d < hojeDate) return <span className="semana-g semana-g-late" title="Pendente de dia anterior"><AlertTriangle size={12} /></span>;
+    return <span className="semana-g semana-g-open" />;
+  };
+
+  return (
+    <div className="panel semana-panel">
+      <div className="semana-head">
+        <div className="salv-lembretes-titulo">
+          <span className="salv-lembretes-icon"><CalendarDays size={18} /></span>
+          <div>
+            <h3 style={{ margin: 0 }}>Panorama da semana</h3>
+            <div className="muted-sm">{curto(inicio)} a {curto(fim)}/{fim.getFullYear()} · missões de cada dia</div>
+          </div>
+        </div>
+        <div className="semana-nav">
+          <button className="icon-btn" title="Semana anterior" onClick={() => setOffset((o) => o - 1)}><ChevronLeft size={16} /></button>
+          <button className="btn-secondary sm" onClick={() => setOffset(0)} disabled={offset === 0}>Esta semana</button>
+          <button className="icon-btn" title="Próxima semana" onClick={() => setOffset((o) => o + 1)}><ChevronRight size={16} /></button>
+        </div>
+      </div>
+      <div className="semana-grid">
+        {dias.map((d, i) => {
+          const cor = CHECKLIST_DIA_CORES[i];
+          const ds = fmt(d);
+          const ehHoje = ds === hojeStr;
+          const futuro = d > hojeDate;
+          const doDia = lista.filter((it) => it.data === ds);
+          // dias futuros: mostra as funções recorrentes previstas (ainda não geradas) para aquele dia da semana
+          const previstas = futuro
+            ? (templates || []).filter((tp) => tp.ativo && tp.setor === setorKey && tplAplicaNoDia(tp, d) && !doDia.some((it) => it.templateId === tp.id))
+            : [];
+          const ativos = doDia.filter((it) => !it.dispensada);
+          const feitos = ativos.filter((it) => it.feito).length;
+          const ordenados = doDia.slice().sort((a, b) => (a.feito === b.feito ? 0 : a.feito ? 1 : -1));
+          return (
+            <div key={ds} className={`semana-dia ${ehHoje ? "hoje" : ""} ${futuro ? "futuro" : ""}`} style={{ "--dia-accent": cor.accent, "--dia-bg": cor.bg, "--dia-borda": cor.borda }}>
+              <div className="semana-dia-head">
+                <div>
+                  <div className="semana-dia-nome">{cor.nome}{ehHoje && <span className="semana-hoje-tag">HOJE</span>}</div>
+                  <div className="semana-dia-data">{curto(d)}</div>
+                </div>
+                {ativos.length > 0 && <span className="semana-dia-count">{feitos}/{ativos.length}</span>}
+              </div>
+              {ativos.length > 0 && (
+                <div className="semana-dia-bar"><div style={{ width: `${Math.round((feitos / ativos.length) * 100)}%` }} /></div>
+              )}
+              <div className="semana-dia-body">
+                {ordenados.length === 0 && previstas.length === 0 && (
+                  <div className="semana-vazio">{futuro ? "Sem missões previstas" : "Sem registros"}</div>
+                )}
+                {ordenados.map((it) => (
+                  <div key={it.id} className={`semana-task ${it.feito ? "feita" : ""} ${it.dispensada ? "disp" : ""}`} title={it.texto + (it.responsavel ? ` — ${it.responsavel}` : "")}>
+                    {glifo(it, d)}
+                    <div className="semana-task-main">
+                      <span className="semana-task-txt">{it.texto}</span>
+                      {agrupaPorMilitar && it.responsavel && (
+                        <span className="semana-resp" style={{ background: cor.accent }}>{militarCodigo(it.responsavel)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {previstas.map((tp) => {
+                  const resp = getTplResponsaveis(tp)[0];
+                  return (
+                    <div key={"p" + tp.id} className="semana-task prevista" title={tp.texto + (resp ? ` — ${resp}` : "") + " (prevista)"}>
+                      <span className="semana-g semana-g-open" />
+                      <div className="semana-task-main">
+                        <span className="semana-task-txt">{tp.texto}</span>
+                        {agrupaPorMilitar && resp && <span className="semana-resp" style={{ background: cor.accent }}>{militarCodigo(resp)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, responsavelAuto, onToggle, onObservacao, onResponsavel, onRemoveItem, onAddAvulsa, onGerenciar, templates }) {
   const hojeDate = parseBRDate(hojeStr);
   const lista = itens.filter((it) => it.setor === setorKey);
   const dataOf = (it) => parseBRDate(it.data);
@@ -1658,6 +1832,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
       <div key={it.id} className={`checklist-item ${it.feito ? "is-done" : ""} ${atrasada ? "is-late" : ""}`}>
         <label className="checklist-check">
           <input type="checkbox" checked={it.feito} disabled={visaoExterna} onChange={() => onToggle(it)} />
+          <span className="salv-check-box">{it.feito && <CheckCircle2 size={16} />}</span>
         </label>
         <div className="checklist-item-body">
           <div className="checklist-item-texto">{it.texto}</div>
@@ -1704,14 +1879,13 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
 
   if (!agrupaPorMilitar) {
     return (
-      <div className="panel checklist-panel">
-        <div className="checklist-head">
-          <div>
-            <h3 style={{ margin: 0 }}>{setorLabel}</h3>
-            {responsavelAuto && <div className="muted-sm">Responsável de hoje: <strong>{responsavelAuto}</strong> <span style={{ opacity: .7 }}>(via Escala)</span></div>}
-          </div>
-          <div className="checklist-counter">{feitasHoje.length} de {totalHoje} feitas hoje</div>
-        </div>
+      <div className={`panel checklist-panel ${totalHoje > 0 && feitasHoje.length >= totalHoje ? "completo" : ""}`}>
+        <ChecklistHeader
+          titulo={setorLabel}
+          sub={responsavelAuto ? <div className="muted-sm">Responsável de hoje: <strong>{responsavelAuto}</strong> <span style={{ opacity: .7 }}>(via Escala)</span></div> : <div className="muted-sm">{hojeStr}</div>}
+          feitas={feitasHoje.length}
+          total={totalHoje}
+        />
 
         {atrasadas.length > 0 && (
           <>
@@ -1756,11 +1930,10 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
   if (grupos["__sem__"]) nomes.push("__sem__");
 
   return (
-    <div className="panel checklist-panel">
-      <div className="checklist-head">
-        <div><h3 style={{ margin: 0 }}>{setorLabel}</h3></div>
-        <div className="checklist-counter">{feitasHoje.length} de {totalHoje} feitas hoje</div>
-      </div>
+    <>
+    <ChecklistSemana itens={itens} templates={templates} setorKey={setorKey} hojeStr={hojeStr} />
+    <div className={`panel checklist-panel ${totalHoje > 0 && feitasHoje.length >= totalHoje ? "completo" : ""}`}>
+      <ChecklistHeader titulo={setorLabel} sub={<div className="muted-sm">{hojeStr}</div>} feitas={feitasHoje.length} total={totalHoje} />
 
       {todos.length === 0 && <div className="empty" style={{ color: "#C9C2B4", marginBottom: 12 }}>Nenhuma função cadastrada ainda. Use "Gerenciar funções" para começar.</div>}
 
@@ -1779,7 +1952,10 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
                 <span className="checklist-person-avatar" style={{ background: cor.accent }}>{semResp ? "?" : militarCodigo(nome)}</span>
                 <span className="checklist-person-name" style={{ color: cor.fg }}>{semResp ? "Sem responsável definido" : nome}</span>
               </div>
-              <span className="checklist-person-counter">{feitosCount} de {acionaveis.length}</span>
+              <div className="checklist-person-prog">
+                <div className="checklist-person-bar"><div style={{ width: `${acionaveis.length ? Math.round((feitosCount / acionaveis.length) * 100) : 0}%`, background: cor.accent }} /></div>
+                <span className="checklist-person-counter">{feitosCount} de {acionaveis.length}</span>
+              </div>
             </div>
             <div className="checklist-person-body">
               {acionaveis.map((it) => renderItem(it, atrasadasIds.has(it.id)))}
@@ -1792,6 +1968,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
 
       {acoes}
     </div>
+    </>
   );
 }
 
@@ -1900,6 +2077,544 @@ function ChecklistHistorico({ itens, hojeStr }) {
   );
 }
 
+/* ---------------- SALVAMAR (Núcleo de Salvamento Aquático) ---------------- */
+function salvamarNum(v) {
+  const n = parseFloat(String(v == null ? "" : v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+function salvamarFmtHoras(n) {
+  const r = Math.round(n * 10) / 10;
+  return `${String(r).replace(".", ",")}h`;
+}
+function salvamarLembretesDoDia(lembretes, dia) {
+  const l = lembretes && lembretes[String(dia)];
+  return Array.isArray(l) ? l : [];
+}
+const SALVAMAR_DIAS_LONGOS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+
+function SalvamarTransferModal({ embarcacoes, viaturas, onClose, onConfirm }) {
+  const [selE, setSelE] = useState([]);
+  const [selV, setSelV] = useState([]);
+  const toggle = (list, setList, id) => setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const dispE = embarcacoes.filter((e) => !e.salvamar);
+  const dispV = viaturas.filter((v) => !v.salvamar);
+  const total = selE.length + selV.length;
+  const grupo = (titulo, lista, sel, setSel) => (
+    <div>
+      <div className="checklist-group-label" style={{ marginTop: 4 }}>{titulo}</div>
+      {lista.length === 0 && <div className="muted-sm">Nada disponível para transferir.</div>}
+      {lista.map((x) => (
+        <label key={x.id} className="salv-transfer-item">
+          <input type="checkbox" checked={sel.includes(x.id)} onChange={() => toggle(sel, setSel, x.id)} />
+          <span><strong>{x.nome}</strong> <span className="muted-sm">· {x.tipo || "—"}</span></span>
+        </label>
+      ))}
+    </div>
+  );
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Transferir para o SALVAMAR</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <div className="muted-sm">Os meios transferidos continuam aparecendo em Viaturas/Embarcações, com uma etiqueta SALVAMAR. Qualquer alteração feita em um lado vale para o outro.</div>
+          {grupo("Embarcações", dispE, selE, setSelE)}
+          {grupo("Viaturas", dispV, selV, setSelV)}
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={total === 0} onClick={() => onConfirm(selE, selV)}>Transferir{total > 0 ? ` (${total})` : ""}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalvamarRegistroModal({ initial, embarcacoes, hojeStr, onClose, onSave }) {
+  const [form, setForm] = useState(() => initial ? {
+    ...initial,
+    horas: initial.horas ? String(initial.horas).replace(".", ",") : "",
+  } : {
+    data: hojeStr, embarcacaoId: embarcacoes[0] ? embarcacoes[0].id : "", militar: "",
+    preUso: "Sim", foiParaAgua: "Não", horas: "", alteracao: "Não", alteracaoDescricao: "", relato: "",
+  });
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const dataValida = !!parseBRDate(form.data);
+  const horasNum = salvamarNum(form.horas);
+  const naAgua = form.foiParaAgua === "Sim";
+  const comAlteracao = form.alteracao === "Sim";
+  const podeSalvar = dataValida && !!form.embarcacaoId && !!(form.militar || "").trim()
+    && (!naAgua || horasNum > 0) && (!comAlteracao || !!(form.alteracaoDescricao || "").trim());
+  const salvar = () => {
+    const emb = embarcacoes.find((e) => e.id === form.embarcacaoId);
+    onSave({
+      ...form,
+      id: form.id || uid(),
+      militar: form.militar.trim(),
+      embarcacaoNome: emb ? emb.nome : (form.embarcacaoNome || ""),
+      horas: naAgua ? horasNum : 0,
+      alteracaoDescricao: comAlteracao ? form.alteracaoDescricao.trim() : "",
+      relato: (form.relato || "").trim(),
+      sanado: comAlteracao ? !!form.sanado : false,
+      sanadoEm: comAlteracao ? (form.sanadoEm || "") : "",
+      criadoEm: form.criadoEm || agoraFormatado(),
+    });
+  };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar registro de serviço" : "Registrar serviço"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Data do serviço<input value={form.data} onChange={set("data")} placeholder="dd/mm/aaaa" /></label>
+          <label>Embarcação
+            <select value={form.embarcacaoId} onChange={set("embarcacaoId")}>
+              <option value="">Selecione...</option>
+              {embarcacoes.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              {form.embarcacaoId && !embarcacoes.some((e) => e.id === form.embarcacaoId) && <option value={form.embarcacaoId}>{form.embarcacaoNome || "Embarcação removida"}</option>}
+            </select>
+          </label>
+          <label>Responsável pelo registro (posto/graduação e nome)
+            <input list="salv-militares" value={form.militar} onChange={set("militar")} placeholder="Ex: 3º Sgt. Fulano" />
+            <datalist id="salv-militares">{MILITARES.map((m) => <option key={m.nome} value={m.nome} />)}</datalist>
+          </label>
+          <label>Foram feitas as manutenções pré-uso e vistorias na embarcação e no reboque?
+            <select value={form.preUso} onChange={set("preUso")}><option>Sim</option><option>Não</option></select>
+          </label>
+          <label>A embarcação foi para a água?
+            <select value={form.foiParaAgua} onChange={set("foiParaAgua")}><option>Sim</option><option>Não</option></select>
+          </label>
+          {naAgua && (
+            <label>Tempo de uso na água (em horas)
+              <input value={form.horas} onChange={set("horas")} placeholder="Ex: 1,5" inputMode="decimal" />
+            </label>
+          )}
+          <label>A embarcação possui alguma alteração?
+            <select value={form.alteracao} onChange={set("alteracao")}><option>Não</option><option>Sim</option></select>
+          </label>
+          {comAlteracao && (
+            <label>Descreva a alteração (isso gera um alerta até ser marcado como resolvido)
+              <textarea rows={3} value={form.alteracaoDescricao} onChange={set("alteracaoDescricao")} placeholder="Ex: falha na baixa velocidade, catraca do reboque com folga..." />
+            </label>
+          )}
+          <label>Relato do serviço (opcional)
+            <textarea rows={3} value={form.relato} onChange={set("relato")} placeholder="Informações relevantes, ocorrências atendidas, abastecimento, etc." />
+          </label>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!podeSalvar} onClick={salvar}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalvamarLembretesModal({ lembretes, diaInicial, onClose, onSave }) {
+  const [dia, setDia] = useState(diaInicial);
+  const [novo, setNovo] = useState("");
+  const lista = salvamarLembretesDoDia(lembretes, dia);
+  const gravar = (arr) => onSave({ ...(lembretes || {}), [String(dia)]: arr });
+  const adicionar = () => { const t = novo.trim(); if (!t) return; gravar([...lista, t]); setNovo(""); };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Lembretes do piloto</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <div className="toggle" style={{ flexWrap: "wrap" }}>
+            {WEEKDAYS.map((w, i) => (
+              <button key={w} className={dia === i ? "toggle-btn active" : "toggle-btn"} onClick={() => setDia(i)}>{w}</button>
+            ))}
+          </div>
+          <div className="muted-sm">Lembretes de {SALVAMAR_DIAS_LONGOS[dia]}</div>
+          {lista.length === 0 && <div className="muted-sm">Nenhum lembrete cadastrado para esse dia.</div>}
+          {lista.map((t, i) => (
+            <div key={i} className="salv-lembrete-row">
+              <span>{t}</span>
+              <button className="icon-btn icon-danger" title="Remover lembrete" onClick={() => gravar(lista.filter((_, j) => j !== i))}><Trash2 size={13} /></button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 6 }}>
+            <input className="checklist-manage-resp" style={{ flex: 1 }} value={novo} onChange={(e) => setNovo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); adicionar(); } }} placeholder="Novo lembrete..." />
+            <button type="button" className="btn-primary sm" onClick={adicionar} disabled={!novo.trim()}><Plus size={13} /> Adicionar</button>
+          </div>
+        </div>
+        <div className="modal-foot"><button className="btn-primary" onClick={onClose}>Concluído</button></div>
+      </div>
+    </div>
+  );
+}
+
+function SalvamarRelatorioModal({ embarcacoes, registros, embarcacaoInicial, onClose }) {
+  const [embId, setEmbId] = useState(embarcacaoInicial || "");
+  const [ini, setIni] = useState("");
+  const [fim, setFim] = useState("");
+  const dIni = ini ? parseBRDate(ini) : null;
+  const dFim = fim ? parseBRDate(fim) : null;
+  const iniInvalida = !!ini && !dIni, fimInvalida = !!fim && !dFim;
+  const nomeDe = (r) => { const v = embarcacoes.find((e) => e.id === r.embarcacaoId); return v ? v.nome : (r.embarcacaoNome || "Embarcação removida"); };
+  const lista = registros.filter((r) => {
+    if (embId && r.embarcacaoId !== embId) return false;
+    const d = parseBRDate(r.data);
+    if (dIni && (!d || d < dIni)) return false;
+    if (dFim && (!d || d > dFim)) return false;
+    return true;
+  }).slice().sort((a, b) => ((parseBRDate(a.data) || 0) - (parseBRDate(b.data) || 0)));
+  const nomeEmb = embId ? ((embarcacoes.find((e) => e.id === embId) || {}).nome || "Embarcação") : "Todas as embarcações";
+  const periodo = (ini || fim) ? `${ini || "início"} a ${fim || "hoje"}` : "Todo o período";
+  const horasTot = lista.reduce((t, r) => t + salvamarNum(r.horas), 0);
+  const naAgua = lista.filter((r) => r.foiParaAgua === "Sim" || salvamarNum(r.horas) > 0).length;
+  const pilotos = {};
+  lista.forEach((r) => { const k = r.militar || "—"; pilotos[k] = pilotos[k] || { n: 0, h: 0 }; pilotos[k].n += 1; pilotos[k].h += salvamarNum(r.horas); });
+  const alteracaoTxt = (r) => r.alteracao === "Sim" ? `${r.alteracaoDescricao || "Sim"}${r.sanado ? ` (resolvida${r.sanadoEm ? " em " + r.sanadoEm : ""})` : " (pendente)"}` : "Nenhuma";
+  const aguaTxt = (r) => (r.foiParaAgua === "Sim" || salvamarNum(r.horas) > 0) ? "Sim" : "Não";
+  const nomeArq = `relatorio-salvamar-${nomeEmb.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}`;
+
+  const baixarCSV = () => {
+    const cel = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const linhas = [["Data", "Embarcação", "Piloto / militar", "Pré-uso feito", "Foi para a água", "Horas de uso", "Alteração", "Relato do serviço"]];
+    lista.forEach((r) => linhas.push([r.data, nomeDe(r), r.militar, r.preUso === "Sim" ? "Sim" : "Não", aguaTxt(r), String(salvamarNum(r.horas)).replace(".", ","), alteracaoTxt(r), r.relato || ""]));
+    const csv = "\uFEFF" + linhas.map((l) => l.map(cel).join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nomeArq + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  const gerarPDF = () => {
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const linhasReg = lista.map((r) => `<tr><td>${esc(r.data)}</td><td>${esc(nomeDe(r))}</td><td>${esc(r.militar)}</td><td>${r.preUso === "Sim" ? "Sim" : "Não"}</td><td>${aguaTxt(r)}</td><td>${esc(salvamarFmtHoras(salvamarNum(r.horas)))}</td><td>${esc(alteracaoTxt(r))}</td><td>${esc(r.relato || "—")}</td></tr>`).join("");
+    const linhasPil = Object.keys(pilotos).sort().map((k) => `<tr><td>${esc(k)}</td><td>${pilotos[k].n}</td><td>${esc(salvamarFmtHoras(pilotos[k].h))}</td></tr>`).join("");
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(nomeArq)}</title><style>
+      @page{size:A4 landscape;margin:14mm;}
+      body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;}
+      h1{font-size:15px;text-align:center;margin:0;} h2{font-size:12px;text-align:center;margin:2px 0 12px;font-weight:normal;}
+      h3{font-size:12px;text-decoration:underline;margin:16px 0 6px;}
+      .meta{display:flex;gap:24px;justify-content:center;margin-bottom:8px;}
+      table{width:100%;border-collapse:collapse;} th,td{border:1px solid #444;padding:4px 6px;text-align:left;vertical-align:top;} th{background:#eee;}
+      td{text-align:justify;} tr{page-break-inside:avoid;}
+      </style></head><body>
+      <h1>CORPO DE BOMBEIROS MILITAR DA PARAÍBA — 1º BATALHÃO DE BOMBEIRO MILITAR</h1>
+      <h2>SALVAMAR — Núcleo de Salvamento Aquático · Relatório de Registro de Serviço</h2>
+      <div class="meta"><span><b>Embarcação:</b> ${esc(nomeEmb)}</span><span><b>Período:</b> ${esc(periodo)}</span><span><b>Emitido em:</b> ${new Date().toLocaleDateString("pt-BR")}</span></div>
+      <div class="meta"><span><b>Registros:</b> ${lista.length}</span><span><b>Saídas à água:</b> ${naAgua}</span><span><b>Horas totais de uso:</b> ${esc(salvamarFmtHoras(horasTot))}</span></div>
+      <h3>Pilotos / militares que utilizaram</h3>
+      <table style="width:50%"><tr><th>Militar</th><th>Nº de serviços</th><th>Horas</th></tr>${linhasPil || '<tr><td colspan="3">Sem registros no período.</td></tr>'}</table>
+      <h3>Registros de serviço</h3>
+      <table><tr><th>Data</th><th>Embarcação</th><th>Piloto / militar</th><th>Pré-uso</th><th>Na água</th><th>Horas</th><th>Alteração</th><th>Relato do serviço</th></tr>${linhasReg || '<tr><td colspan="8">Sem registros no período.</td></tr>'}</table>
+      <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { alert("O navegador bloqueou a nova janela. Permita pop-ups para este site e tente de novo."); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Relatório de registro de serviço</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Embarcação
+            <select value={embId} onChange={(e) => setEmbId(e.target.value)}>
+              <option value="">Todas as embarcações</option>
+              {embarcacoes.filter((e) => e.salvamar).map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <label style={{ flex: 1 }}>De (opcional)<input value={ini} onChange={(e) => setIni(e.target.value)} placeholder="dd/mm/aaaa" /></label>
+            <label style={{ flex: 1 }}>Até (opcional)<input value={fim} onChange={(e) => setFim(e.target.value)} placeholder="dd/mm/aaaa" /></label>
+          </div>
+          {(iniInvalida || fimInvalida) && <div className="muted-sm" style={{ color: "#B23B3B" }}>Use o formato dd/mm/aaaa nas datas.</div>}
+          <div className="muted-sm">{lista.length} registro(s) · {naAgua} saída(s) à água · {salvamarFmtHoras(horasTot)} de uso · {Object.keys(pilotos).length} militar(es)</div>
+          <div className="muted-sm">O relatório traz: pilotos que usaram, dia, se foi para a água, horas de uso, alterações e relatos do serviço.</div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={baixarCSV} disabled={iniInvalida || fimInvalida || lista.length === 0}><Download size={14} /> Baixar planilha (CSV)</button>
+          <button className="btn-primary" onClick={gerarPDF} disabled={iniInvalida || fimInvalida || lista.length === 0}><Download size={14} /> Baixar PDF</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SalvamarPanel({ viaturas, embarcacoes, registros, lembretes, lembretesFeitos, onSaveLembretesFeitos, problemasAbertos, onResolverProblema, hojeStr, visaoExterna, renderVehicleCard,
+  onOpenTransfer, onDevolver, onSaveRegistro, onDeleteRegistro, onSanar, onSaveLembretes }) {
+  const [view, setView] = useState("frota");
+  const [registroModal, setRegistroModal] = useState(null); // null | "novo" | registro
+  const [lembretesOpen, setLembretesOpen] = useState(false);
+  const [relatorioOpen, setRelatorioOpen] = useState(null); // null | "" (todas) | id da embarcação
+  const [filtroEmb, setFiltroEmb] = useState("");
+  const [mostrarSanados, setMostrarSanados] = useState(false);
+
+  const frota = embarcacoes.filter((e) => e.salvamar);
+  const frotaViat = viaturas.filter((v) => v.salvamar);
+  const nomeDe = (r) => {
+    const v = embarcacoes.find((e) => e.id === r.embarcacaoId);
+    return v ? v.nome : (r.embarcacaoNome || "Embarcação removida");
+  };
+  const regsDe = (id) => registros.filter((r) => r.embarcacaoId === id);
+  const horasDe = (id) => regsDe(id).reduce((s, r) => s + salvamarNum(r.horas), 0);
+  const alertasPend = registros.filter((r) => r.alteracao === "Sim" && !r.sanado);
+  const idsSalv = [...frota, ...frotaViat].map((x) => x.id);
+  const problemasSalv = (problemasAbertos || []).filter((p) => idsSalv.includes(p.veiculoId));
+  const totalPend = alertasPend.length + problemasSalv.length;
+  const alertasSan = registros.filter((r) => r.alteracao === "Sim" && r.sanado);
+  const horasTotal = registros.reduce((s, r) => s + salvamarNum(r.horas), 0);
+  const porData = (a, b) => {
+    const da = parseBRDate(a.data), db = parseBRDate(b.data);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  };
+  const hojeDow = new Date().getDay();
+  const lembretesHoje = salvamarLembretesDoDia(lembretes, hojeDow);
+  const feitosHoje = ((lembretesFeitos && lembretesFeitos[hojeStr]) || []).filter((t) => lembretesHoje.includes(t));
+  const alternarLembrete = (t) => {
+    const atual = (lembretesFeitos && lembretesFeitos[hojeStr]) || [];
+    const novo = atual.includes(t) ? atual.filter((x) => x !== t) : [...atual, t];
+    const todos = { ...(lembretesFeitos || {}), [hojeStr]: novo };
+    const chaves = Object.keys(todos);
+    if (chaves.length > 40) {
+      const ordenadas = chaves.sort((a, b) => ((parseBRDate(a) || 0) - (parseBRDate(b) || 0)));
+      ordenadas.slice(0, chaves.length - 40).forEach((k) => { delete todos[k]; });
+    }
+    onSaveLembretesFeitos(todos);
+  };
+
+  const kpi = (key, label, valor, cor) => (
+    <button type="button" className={`salv-kpi ${view === key ? "active" : ""}`} onClick={() => setView(key)}>
+      <span className="salv-kpi-label">{label}</span>
+      <span className="salv-kpi-num" style={cor ? { color: cor } : undefined}>{valor}</span>
+    </button>
+  );
+
+  const registrosFiltrados = registros.filter((r) => !filtroEmb || r.embarcacaoId === filtroEmb).slice().sort(porData);
+
+  return (
+    <>
+      <div className="section-head">
+        <h2>SALVAMAR</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn-secondary sm" onClick={() => setRelatorioOpen("")}><Download size={13} /> Baixar relatório</button>
+        {!visaoExterna && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} className="internal-only">
+            <button className="btn-secondary sm" onClick={onOpenTransfer}>Transferir viaturas</button>
+            <button className="btn-primary sm" onClick={() => setRegistroModal("novo")} disabled={frota.length === 0}><Plus size={14} /> Registrar serviço</button>
+          </div>
+        )}
+        </div>
+      </div>
+      <div className="muted-sm" style={{ marginBottom: 14 }}>Núcleo de Salvamento Aquático — anexo do 1º BBM. Todas as embarcações sob administração do núcleo.</div>
+
+      <div className={`panel salv-lembretes ${lembretesHoje.length > 0 && feitosHoje.length >= lembretesHoje.length ? "completo" : ""}`}>
+        <div className="salv-lembretes-head">
+          <div className="salv-lembretes-titulo">
+            <span className="salv-lembretes-icon"><ListChecks size={18} /></span>
+            <div>
+              <h3 style={{ margin: 0 }}>Lembretes do piloto</h3>
+              <div className="muted-sm">{SALVAMAR_DIAS_LONGOS[hojeDow]} · {hojeStr}</div>
+            </div>
+          </div>
+          {!visaoExterna && <button className="btn-secondary sm internal-only" onClick={() => setLembretesOpen(true)}><Pencil size={12} /> Editar lembretes</button>}
+        </div>
+        {lembretesHoje.length === 0
+          ? <div className="muted-sm">Nenhum lembrete cadastrado para hoje.{!visaoExterna ? " Use \"Editar lembretes\" para cadastrar." : ""}</div>
+          : (
+            <>
+              <div className="salv-prog">
+                <div className="salv-prog-bar"><div className="salv-prog-fill" style={{ width: `${Math.round((feitosHoje.length / lembretesHoje.length) * 100)}%` }} /></div>
+                <span className="salv-prog-txt">{feitosHoje.length} de {lembretesHoje.length} {feitosHoje.length >= lembretesHoje.length ? "· tudo em dia! ✔" : "feitos"}</span>
+              </div>
+              <div className="salv-checks">
+                {lembretesHoje.map((t, i) => {
+                  const feito = feitosHoje.includes(t);
+                  return (
+                    <label key={i} className={`salv-check ${feito ? "feito" : ""} ${visaoExterna ? "ro" : ""}`}>
+                      <input type="checkbox" checked={feito} disabled={visaoExterna} onChange={() => alternarLembrete(t)} />
+                      <span className="salv-check-box">{feito && <CheckCircle2 size={16} />}</span>
+                      <span className="salv-check-txt">{t}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+      </div>
+
+      <div className="salv-kpis">
+        {kpi("registros", "Registros de serviço", registros.length)}
+        {kpi("frota", "Embarcações ativas", frota.length)}
+        {kpi("horas", "Horas globais de uso", salvamarFmtHoras(horasTotal))}
+        {kpi("alertas", "Alertas pendentes", totalPend, totalPend ? "#B23B3B" : "#2F7D4F")}
+      </div>
+
+      {view === "frota" && (
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Status da frota</h3>
+          {frota.length === 0 && <div className="empty">Nenhuma embarcação transferida para o SALVAMAR ainda. Use "Transferir viaturas".</div>}
+          {frota.map((e) => {
+            const pend = alertasPend.filter((r) => r.embarcacaoId === e.id).length + problemasSalv.filter((p) => p.veiculoId === e.id).length;
+            const s = VSTATUS[e.status] || VSTATUS.disponivel;
+            return (
+              <div key={e.id} className="salv-row">
+                <div className="salv-row-main">
+                  <div className="salv-row-title">{e.nome}</div>
+                  <div className="muted-sm">{regsDe(e.id).length} registro(s) · {salvamarFmtHoras(horasDe(e.id))} de uso</div>
+                </div>
+                <div className="salv-row-tags">
+                  <button className="btn-secondary sm" title="Baixar relatório desta embarcação" onClick={() => setRelatorioOpen(e.id)}><Download size={12} /> Relatório</button>
+                  <span className="pill" style={{ background: s.bg, color: s.fg }}>{s.label}</span>
+                  {pend > 0
+                    ? <span className="pill" style={{ background: "#FBE3E3", color: "#B23B3B" }}>Alteração pendente ({pend})</span>
+                    : <span className="pill" style={{ background: "#E4F2E8", color: "#2F7D4F" }}>Sem alterações pendentes</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {view === "registros" && (
+        <div className="panel">
+          <div className="salv-lembretes-head">
+            <h3 style={{ margin: 0 }}>Histórico de registros</h3>
+            <select className="checklist-manage-resp" value={filtroEmb} onChange={(e) => setFiltroEmb(e.target.value)}>
+              <option value="">Todas as embarcações</option>
+              {frota.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </div>
+          {registrosFiltrados.length === 0 && <div className="empty">Nenhum registro de serviço ainda.</div>}
+          {registrosFiltrados.map((r) => (
+            <div key={r.id} className="salv-registro">
+              <div className="salv-row-main">
+                <div className="salv-row-title">{nomeDe(r)} <span className="muted-sm">· {r.data}</span></div>
+                <div className="checklist-item-meta">
+                  <span className="muted-sm">{r.militar}</span>
+                  <span className={r.preUso === "Sim" ? "checklist-tag-feita" : "checklist-tag-atraso"}>Pré-uso {r.preUso === "Sim" ? "feito" : "não feito"}</span>
+                  {salvamarNum(r.horas) > 0 && <span className="checklist-tag-avulsa">Na água · {salvamarFmtHoras(salvamarNum(r.horas))}</span>}
+                  {r.alteracao === "Sim" && <span className={r.sanado ? "checklist-tag-dispensada" : "checklist-tag-atraso"}>{r.sanado ? `Alteração resolvida${r.sanadoEm ? ` em ${r.sanadoEm}` : ""}` : "Alteração pendente"}</span>}
+                </div>
+                {r.alteracao === "Sim" && r.alteracaoDescricao && <div className="muted-sm" style={{ marginTop: 4 }}>Alteração: {r.alteracaoDescricao}</div>}
+                {r.relato && <div className="muted-sm" style={{ marginTop: 4 }}>{r.relato}</div>}
+              </div>
+              {!visaoExterna && (
+                <div className="vcard-icons internal-only">
+                  <button className="icon-btn" title="Editar registro" onClick={() => setRegistroModal(r)}><Pencil size={14} /></button>
+                  <button className="icon-btn icon-danger" title="Excluir registro" onClick={() => onDeleteRegistro(r)}><Trash2 size={14} /></button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view === "horas" && (
+        <div className="panel">
+          <h3 style={{ marginTop: 0 }}>Detalhamento de horas</h3>
+          {frota.length === 0 && <div className="empty">Nenhuma embarcação no SALVAMAR.</div>}
+          {frota.slice().sort((a, b) => horasDe(b.id) - horasDe(a.id)).map((e) => {
+            const regs = regsDe(e.id).slice().sort(porData);
+            return (
+              <div key={e.id} className="salv-row">
+                <div className="salv-row-main">
+                  <div className="salv-row-title">{e.nome}</div>
+                  <div className="muted-sm">{regs.length ? `Último registro em ${regs[0].data}` : "Sem registros"}</div>
+                </div>
+                <div className="salv-horas-valor">{salvamarFmtHoras(horasDe(e.id))}</div>
+              </div>
+            );
+          })}
+          <div className="salv-row salv-row-total">
+            <div className="salv-row-title">Total</div>
+            <div className="salv-horas-valor">{salvamarFmtHoras(horasTotal)}</div>
+          </div>
+        </div>
+      )}
+
+      {view === "alertas" && (
+        <div className="panel">
+          <div className="salv-lembretes-head">
+            <h3 style={{ margin: 0 }}>Gestão de alertas</h3>
+            {alertasSan.length > 0 && (
+              <button className="btn-secondary sm" onClick={() => setMostrarSanados((v) => !v)}>{mostrarSanados ? "Ocultar resolvidos" : `Mostrar resolvidos (${alertasSan.length})`}</button>
+            )}
+          </div>
+          {totalPend === 0 && <div className="empty">Nenhum alerta pendente.</div>}
+          {problemasSalv.map((p) => (
+            <div key={p.id} className="salv-registro salv-alerta">
+              <div className="salv-row-main">
+                <div className="salv-row-title"><AlertTriangle size={13} /> {p.veiculoNome} <span className="muted-sm">· {p.data} · problema reportado ({p.categoria}) · urgência {p.prioridade || "Média"}</span></div>
+                {p.descricao && <div style={{ fontSize: 13, marginTop: 2 }}>{p.descricao}</div>}
+                <div className="muted-sm" style={{ marginTop: 2 }}>Reportado por {p.condutor}</div>
+              </div>
+              {!visaoExterna && <button className="btn-secondary sm internal-only" onClick={() => onResolverProblema(p.id)}>Resolvido</button>}
+            </div>
+          ))}
+          {alertasPend.slice().sort(porData).map((r) => (
+            <div key={r.id} className="salv-registro salv-alerta">
+              <div className="salv-row-main">
+                <div className="salv-row-title"><AlertTriangle size={13} /> {nomeDe(r)} <span className="muted-sm">· {r.data}</span></div>
+                <div style={{ fontSize: 13, marginTop: 2 }}>{r.alteracaoDescricao}</div>
+                {r.relato && <div className="muted-sm" style={{ marginTop: 4 }}>Relato: {r.relato}</div>}
+                <div className="muted-sm" style={{ marginTop: 2 }}>Registrado por {r.militar}</div>
+              </div>
+              {!visaoExterna && <button className="btn-secondary sm internal-only" onClick={() => onSanar(r)}>Resolvido</button>}
+            </div>
+          ))}
+          {mostrarSanados && alertasSan.slice().sort(porData).map((r) => (
+            <div key={r.id} className="salv-registro" style={{ opacity: 0.7 }}>
+              <div className="salv-row-main">
+                <div className="salv-row-title">{nomeDe(r)} <span className="muted-sm">· {r.data} · resolvido{r.sanadoEm ? ` em ${r.sanadoEm}` : ""}</span></div>
+                <div className="muted-sm">{r.alteracaoDescricao}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h3 className="alertas-section-title" style={{ marginTop: 22 }}>Embarcações do SALVAMAR</h3>
+      {frota.length === 0 && <div className="panel"><div className="empty">Nenhuma embarcação transferida ainda.</div></div>}
+      <div className="grid-vehicles">
+        {frota.map((v) => (
+          <div key={v.id}>
+            {renderVehicleCard(v, "embarcacoes")}
+            {!visaoExterna && <button className="link-btn sm internal-only" style={{ marginTop: 6 }} onClick={() => onDevolver("embarcacoes", v)}>Devolver à Seção B/4</button>}
+          </div>
+        ))}
+      </div>
+
+      {frotaViat.length > 0 && (
+        <>
+          <h3 className="alertas-section-title" style={{ marginTop: 22 }}>Viaturas do SALVAMAR</h3>
+          <div className="grid-vehicles">
+            {frotaViat.map((v) => (
+              <div key={v.id}>
+                {renderVehicleCard(v, "viaturas")}
+                {!visaoExterna && <button className="link-btn sm internal-only" style={{ marginTop: 6 }} onClick={() => onDevolver("viaturas", v)}>Devolver à Seção B/4</button>}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {registroModal && (
+        <SalvamarRegistroModal
+          initial={registroModal === "novo" ? null : registroModal}
+          embarcacoes={frota}
+          hojeStr={hojeStr}
+          onClose={() => setRegistroModal(null)}
+          onSave={(r) => { onSaveRegistro(r); setRegistroModal(null); }}
+        />
+      )}
+      {relatorioOpen !== null && (
+        <SalvamarRelatorioModal embarcacoes={embarcacoes} registros={registros} embarcacaoInicial={relatorioOpen} onClose={() => setRelatorioOpen(null)} />
+      )}
+      {lembretesOpen && (
+        <SalvamarLembretesModal lembretes={lembretes} diaInicial={hojeDow} onClose={() => setLembretesOpen(false)} onSave={onSaveLembretes} />
+      )}
+    </>
+  );
+}
+
 function PhotoLightbox({ src, onClose }) {
   return (
     <div className="lightbox-back" onClick={onClose}>
@@ -1989,8 +2704,11 @@ function App() {
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
   const [checklistTemplates, saveChecklistTemplates, readyChecklistTemplates] = useShared("b4-checklist-templates", SEED_CHECKLIST_TEMPLATES);
   const [checklistItens, saveChecklistItens, readyChecklistItens] = useShared("b4-checklist-itens", SEED_CHECKLIST_ITENS);
+  const [salvamarRegistros, saveSalvamarRegistros, readySalvamarRegistros] = useShared("b4-salvamar-registros", []);
+  const [salvamarLembretes, saveSalvamarLembretes, readySalvamarLembretes] = useShared("b4-salvamar-lembretes", {});
+  const [salvamarLembretesFeitos, saveSalvamarLembretesFeitos, readySalvamarLembretesFeitos] = useShared("b4-salvamar-lembretes-feitos", {});
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas"];
+  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas", "salvamar"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) ? h : "geral";
@@ -2067,6 +2785,7 @@ function App() {
   const [mostrarDemandasConcluidas, setMostrarDemandasConcluidas] = useState(false);
   const [demandaBusca, setDemandaBusca] = useState("");
   const [orcamentoModalOpen, setOrcamentoModalOpen] = useState(false);
+  const [salvamarTransferOpen, setSalvamarTransferOpen] = useState(false);
   const [mostrarOrcamentosProcessados, setMostrarOrcamentosProcessados] = useState(false);
   const [orcamentoBusca, setOrcamentoBusca] = useState("");
   const [cautelaBusca, setCautelaBusca] = useState("");
@@ -2081,6 +2800,7 @@ function App() {
     //    conforme a Escala/Expediente do dia (evita "falso acúmulo" em cima de quem está
     //    de Serviço Operacional, Almoxarifado do Dia, Folga, Férias ou Licença).
     const faltando = ativos.filter((tpl) => {
+      if (!tplAplicaNoDia(tpl, t)) return false;
       const temAberto = checklistItens.some((it) => it.templateId === tpl.id && !it.feito);
       const temHoje = checklistItens.some((it) => it.templateId === tpl.id && it.data === hojeStrGer);
       return !temAberto && !temHoje;
@@ -2164,7 +2884,7 @@ function App() {
     const payload = {
       geradoEm: new Date().toISOString(),
       painel: "Controle de Viaturas — B/4 — 1º BBM",
-      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados, demandas, orcamentos, expediente },
+      dados: { viaturas, embarcacoes, problemas, escalas, org, chavesLog, chavesVeiculos, manutencoes, cautelasEquip, alertasDispensados, demandas, orcamentos, expediente, salvamarRegistros, salvamarLembretes },
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -2200,6 +2920,8 @@ function App() {
         if (d.alertasDispensados) saveAlertasDispensados(d.alertasDispensados);
         if (d.demandas) saveDemandas(d.demandas);
         if (d.orcamentos) saveOrcamentos(d.orcamentos);
+        if (d.salvamarRegistros) saveSalvamarRegistros(d.salvamarRegistros);
+        if (d.salvamarLembretes) saveSalvamarLembretes(d.salvamarLembretes);
         if (d.expediente) saveExpediente(d.expediente);
         alert("Backup restaurado com sucesso!");
       });
@@ -2260,8 +2982,8 @@ function App() {
     saveChecklistItens([...checklistItens, novoItem]);
     setChecklistAvulsaOpen(false);
   };
-  const addChecklistTemplate = (texto, responsaveis) => {
-    saveChecklistTemplates([...checklistTemplates, { id: uid(), setor: checklistSubTab, texto, ativo: true, responsaveis: responsaveis || [] }]);
+  const addChecklistTemplate = (texto, responsaveis, dias) => {
+    saveChecklistTemplates([...checklistTemplates, { id: uid(), setor: checklistSubTab, texto, ativo: true, responsaveis: responsaveis || [], dias: dias || [] }]);
   };
   const removeChecklistTemplate = (id) => {
     saveChecklistTemplates(checklistTemplates.filter((t) => t.id !== id));
@@ -2291,12 +3013,46 @@ function App() {
     saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? { ...t, texto: novoTexto } : t)));
     saveChecklistItens(checklistItens.map((it) => (it.templateId === id && !it.feito ? { ...it, texto: novoTexto } : it)));
   };
+  const setChecklistTemplateDias = (id, dias) => {
+    const tpl = checklistTemplates.find((t) => t.id === id);
+    if (!tpl) return;
+    const novoTpl = { ...tpl, dias };
+    saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? novoTpl : t)));
+    // se a função deixou de valer hoje, tira a pendência de hoje (o que já foi feito fica no histórico)
+    const agora = new Date();
+    if (!tplAplicaNoDia(novoTpl, agora)) {
+      const hojeS = `${String(agora.getDate()).padStart(2, "0")}/${String(agora.getMonth() + 1).padStart(2, "0")}/${agora.getFullYear()}`;
+      saveChecklistItens(checklistItens.filter((it) => !(it.templateId === id && !it.feito && !it.avulsa && it.data === hojeS)));
+    }
+  };
   const setChecklistTemplateResponsaveis = (id, responsaveis) => {
     saveChecklistTemplates(checklistTemplates.map((t) => (t.id === id ? { ...t, responsaveis, responsavelPadrao: undefined } : t)));
   };
 
   /* ---- chaves ---- */
   const findVeiculoById = (id) => viaturas.find((v) => v.id === id) || embarcacoes.find((v) => v.id === id);
+  const transferirParaSalvamar = (idsEmb, idsViat) => {
+    if (idsEmb.length) saveEmbarcacoes(embarcacoes.map((e) => (idsEmb.includes(e.id) ? { ...e, salvamar: true } : e)));
+    if (idsViat.length) saveViaturas(viaturas.map((v) => (idsViat.includes(v.id) ? { ...v, salvamar: true } : v)));
+    setSalvamarTransferOpen(false);
+  };
+  const devolverDoSalvamar = (collection, v) => {
+    askConfirm(`Devolver ${v.nome} à Seção B/4? Os registros de serviço já lançados continuam guardados no SALVAMAR.`, () => {
+      if (collection === "viaturas") saveViaturas(viaturas.map((x) => (x.id === v.id ? { ...x, salvamar: false } : x)));
+      else saveEmbarcacoes(embarcacoes.map((x) => (x.id === v.id ? { ...x, salvamar: false } : x)));
+    });
+  };
+  const saveSalvamarRegistro = (r) => {
+    const existe = salvamarRegistros.some((x) => x.id === r.id);
+    saveSalvamarRegistros(existe ? salvamarRegistros.map((x) => (x.id === r.id ? r : x)) : [r, ...salvamarRegistros]);
+  };
+  const deleteSalvamarRegistro = (r) => askConfirm(`Excluir o registro de serviço de ${r.data}?`, () => saveSalvamarRegistros(salvamarRegistros.filter((x) => x.id !== r.id)));
+  const sanarSalvamarRegistro = (r) => askConfirm(`Marcar a alteração de "${r.embarcacaoNome || "embarcação"}" (${r.data}) como resolvida?`, () => {
+    saveSalvamarRegistros(salvamarRegistros.map((x) => (x.id === r.id ? { ...x, sanado: true, sanadoEm: new Date().toLocaleDateString("pt-BR") } : x)));
+  });
+  const renderVehicleCard = (v, collection) => (
+    <VehicleCard key={v.id} v={v} problemCount={problemCountFor(v.id)} onEdit={(x) => openEdit(collection, x)} onDelete={(x) => deleteVehicle(collection, x)} onReport={(x) => setReporting(x)} onPhoto={(x, file) => handleVehiclePhoto(collection, x, file)} onRemovePhoto={(x) => handleRemoveVehiclePhoto(collection, x)} onViewProblems={(x) => setViewingProblemsVeiculo(x)} externa={visaoExterna} />
+  );
   const veiculoCategoria = (id) => (viaturas.some((v) => v.id === id) ? "viaturas" : "embarcacoes");
   const chaveAbertaFor = (veiculoId) => chavesLog.find((c) => c.veiculoId === veiculoId && !c.devolvidaEm);
   const retirarChave = (veiculo, militar, obs, kmSaida) => {
@@ -2454,6 +3210,11 @@ function App() {
       const cor = prioridadeSev(prio);
       return { id: "al-" + p.id, titulo: `${p.veiculoNome} — problema reportado (${p.categoria})`, sub: `${p.condutor} · ${p.data} · Urgência: ${prio}`, desc: p.descricao, sev: { label: prio, fg: cor.fg, bg: cor.bg }, foto: p.foto, problemaId: p.id, veiculoNome: p.veiculoNome };
     }),
+    ...salvamarRegistros.filter((r) => r.alteracao === "Sim" && !r.sanado).map((r) => {
+      const emb = embarcacoes.find((e) => e.id === r.embarcacaoId);
+      const nome = emb ? emb.nome : (r.embarcacaoNome || "Embarcação removida");
+      return { id: "al-salv-" + r.id, salvamarRegId: r.id, salvamarReg: r, titulo: `${nome} — alteração registrada no SALVAMAR`, sub: `${r.militar || "—"} · ${r.data} · SALVAMAR`, desc: r.alteracaoDescricao, sev: SEV.atencao, veiculoNome: nome };
+    }),
     ...chavesEmAbertoLongo.map((c) => ({ id: "al-chave-" + c.id, titulo: `Chave de ${c.veiculoNome} retirada há mais de 30h`, sub: `Com ${c.militar} · desde ${c.retiradaEm}`, sev: SEV.atencao, veiculoNome: c.veiculoNome })),
   ];
   const alertsEquipamentosRaw = [
@@ -2481,6 +3242,7 @@ function App() {
     escalas: "Controle de Viaturas e Embarcações",
     checklist: "Checklist do Dia",
     alertas: "Controle de Viaturas e Embarcações",
+    salvamar: "SALVAMAR — Núcleo de Salvamento Aquático",
   };
 
   return (
@@ -2589,6 +3351,30 @@ function App() {
                   ))}
                 </div>
               </>
+            )}
+
+            {tab === "salvamar" && (
+              (readySalvamarRegistros && readySalvamarLembretes && readySalvamarLembretesFeitos) ? (
+                <SalvamarPanel
+                  viaturas={viaturas}
+                  embarcacoes={embarcacoes}
+                  registros={salvamarRegistros}
+                  lembretes={salvamarLembretes}
+                  lembretesFeitos={salvamarLembretesFeitos}
+                  problemasAbertos={problemasAbertos}
+                  onResolverProblema={resolveProblem}
+                  onSaveLembretesFeitos={saveSalvamarLembretesFeitos}
+                  hojeStr={hojeStr}
+                  visaoExterna={visaoExterna}
+                  renderVehicleCard={renderVehicleCard}
+                  onOpenTransfer={() => setSalvamarTransferOpen(true)}
+                  onDevolver={devolverDoSalvamar}
+                  onSaveRegistro={saveSalvamarRegistro}
+                  onDeleteRegistro={deleteSalvamarRegistro}
+                  onSanar={sanarSalvamarRegistro}
+                  onSaveLembretes={saveSalvamarLembretes}
+                />
+              ) : <div className="loading">Carregando dados do SALVAMAR…</div>
             )}
 
             {tab === "chaves" && (
@@ -3088,6 +3874,7 @@ function App() {
                       onRemoveItem={removeChecklistItem}
                       onAddAvulsa={() => setChecklistAvulsaOpen(true)}
                       onGerenciar={() => setChecklistGerenciarOpen(true)}
+                      templates={checklistTemplates}
                     />
                   );
                 })()}
@@ -3128,7 +3915,10 @@ function App() {
                               <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => deleteProblem(a.problemaId)}><Trash2 size={14} /></button>
                             </>
                           )}
-                          {!a.problemaId && !visaoExterna && (
+                          {a.salvamarRegId && !visaoExterna && (
+                            <button className="btn-secondary sm internal-only" onClick={() => sanarSalvamarRegistro(a.salvamarReg)}>Resolvido</button>
+                          )}
+                          {!a.problemaId && !a.salvamarRegId && !visaoExterna && (
                             <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => dismissAlert(a.id, a.titulo)}><Trash2 size={14} /></button>
                           )}
                           <Pill sev={a.sev} />
@@ -3212,6 +4002,7 @@ function App() {
           onRemove={removeChecklistTemplate}
           onEditTexto={editChecklistTemplateTexto}
           onSetResponsaveis={setChecklistTemplateResponsaveis}
+          onSetDias={setChecklistTemplateDias}
         />
       )}
       {editingOrgOpen && <OrgModal initial={org} onClose={() => setEditingOrgOpen(false)} onSave={(form) => { saveOrg(form); setEditingOrgOpen(false); }} />}
@@ -3269,6 +4060,14 @@ function App() {
           initial={editingDemanda}
           onClose={() => { setDemandaModalOpen(false); setEditingDemanda(null); }}
           onSave={saveDemanda}
+        />
+      )}
+      {salvamarTransferOpen && (
+        <SalvamarTransferModal
+          embarcacoes={embarcacoes}
+          viaturas={viaturas}
+          onClose={() => setSalvamarTransferOpen(false)}
+          onConfirm={transferirParaSalvamar}
         />
       )}
       {orcamentoModalOpen && (
@@ -3484,18 +4283,62 @@ const CSS = `
 .chaves-filtros{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
 .chaves-filtro-input{flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;color:var(--ink);}
 .alertas-section-title{font-family:Georgia,serif;font-size:15px;margin:0 0 8px;color:var(--ink);}
-.checklist-panel{display:flex;flex-direction:column;gap:2px;}
+.checklist-panel{display:flex;flex-direction:column;gap:2px;border-left:4px solid #E0A526;background:linear-gradient(135deg,#FFF9E8 0%,#FFFFFF 55%);}
+.checklist-panel.completo{border-left-color:#2F7D4F;background:linear-gradient(135deg,#EAF6EE 0%,#FFFFFF 55%);}
+.checklist-panel.completo .salv-lembretes-icon{background:#CFEBD8;color:#2F7D4F;}
+.checklist-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:12px;border-bottom:1px solid #EFE6CC;}
+.checklist-hero-prog{flex:1;min-width:220px;max-width:380px;}
+.checklist-hero-prog .salv-prog{margin:0;}
+.checklist-check{position:relative;width:22px;height:22px;flex-shrink:0;margin-top:1px;}
+.checklist-check input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1;}
+.checklist-check input:disabled{cursor:default;}
+.checklist-check input:checked + .salv-check-box{background:#2F7D4F;border-color:#2F7D4F;}
+.checklist-check input:focus-visible + .salv-check-box{outline:2px solid #2A5FA5;outline-offset:2px;}
+.semana-panel{margin-bottom:16px;border-left:4px solid #2A5FA5;background:linear-gradient(135deg,#F3F7FD 0%,#FFFFFF 55%);}
+.semana-panel .salv-lembretes-icon{background:#DCE8F8;color:#2A5FA5;}
+.semana-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.semana-nav{display:flex;align-items:center;gap:6px;}
+.semana-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+@media(max-width:900px){.semana-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));}}
+.semana-task.prevista{background:rgba(255,255,255,.55);border-style:dashed;}
+.dias-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.dias-chip{font-family:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:#fff;color:var(--muted);cursor:pointer;}
+.dias-chip.on{background:var(--dia-accent,#2A5FA5);border-color:var(--dia-accent,#2A5FA5);color:#fff;}
+.dias-chip-todos.on{background:#6B6560;border-color:#6B6560;}
+.semana-dia{background:var(--dia-bg);border:1px solid var(--dia-borda);border-top:4px solid var(--dia-accent);border-radius:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+.semana-dia.hoje{box-shadow:0 0 0 2px var(--dia-accent),0 4px 14px rgba(0,0,0,.10);}
+.semana-dia.futuro .semana-dia-body{opacity:.92;}
+.semana-dia-head{display:flex;align-items:flex-start;justify-content:space-between;gap:4px;padding:9px 8px 6px;}
+.semana-dia-nome{font-family:Georgia,serif;font-size:12.5px;font-weight:700;color:var(--dia-accent);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.semana-dia-data{font-size:11px;color:var(--muted);font-weight:700;margin-top:1px;}
+.semana-hoje-tag{font-family:system-ui,sans-serif;font-size:8.5px;letter-spacing:.06em;color:#fff;background:var(--dia-accent);padding:1px 6px;border-radius:8px;}
+.semana-dia-count{font-size:11px;font-weight:700;color:var(--dia-accent);background:#fff;border:1px solid var(--dia-borda);padding:2px 8px;border-radius:12px;white-space:nowrap;}
+.semana-dia-bar{height:4px;background:rgba(255,255,255,.8);margin:0 8px 6px;border-radius:4px;overflow:hidden;}
+.semana-dia-bar div{height:100%;background:var(--dia-accent);border-radius:4px;transition:width .3s;}
+.semana-dia-body{padding:2px 6px 8px;display:flex;flex-direction:column;gap:5px;}
+.semana-task{display:flex;align-items:flex-start;gap:6px;background:#fff;border:1px solid var(--dia-borda);border-radius:8px;padding:7px 8px;font-size:12px;line-height:1.3;}
+.semana-task-main{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px;}
+.semana-task-txt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;color:var(--ink);}
+.semana-task.feita .semana-task-txt{color:#9C9488;text-decoration:line-through;}
+.semana-task.disp{opacity:.6;}
+.semana-g{flex-shrink:0;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;font-weight:700;font-size:12px;line-height:1;}
+.semana-g-ok{color:#2F7D4F;}
+.semana-g-late{color:#B23B3B;}
+.semana-g-disp{color:#9C9488;}
+.semana-g-open{width:11px;height:11px;margin:2px 1.5px 0;border:2px solid var(--dia-accent);border-radius:50%;box-sizing:border-box;}
+.semana-resp{font-size:8.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:7px;letter-spacing:.03em;}
+.semana-vazio,.semana-rotina{font-size:11px;color:var(--muted);text-align:center;padding:8px 4px;font-style:italic;}
+.semana-rotina{padding:2px 4px;}
 .checklist-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:12px;border-bottom:1px solid var(--border);}
 .checklist-counter{font-size:12.5px;font-weight:700;background:#F0EBE0;color:#6B6560;padding:5px 10px;border-radius:16px;white-space:nowrap;}
 .checklist-group-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin:14px 0 6px;}
 .checklist-group-late{color:#B23B3B;}
 .checklist-group-futura{color:#2A5FA5;}
-.checklist-item{display:flex;align-items:flex-start;gap:10px;padding:10px 6px;border-bottom:1px solid #F0EBE0;}
-.checklist-item:last-child{border-bottom:none;}
-.checklist-item.is-late{background:#FBE3E3;border-radius:8px;padding:10px 10px;margin-bottom:4px;border-bottom:none;}
+.checklist-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;margin-bottom:6px;background:#fff;border:1px solid #EFE6CC;border-radius:10px;transition:background .15s,border-color .15s;}
+.checklist-item:hover{border-color:#E0A526;}
+.checklist-item.is-late{background:#FDF3F3;border-color:#F0C4C4;}
+.checklist-item.is-done{background:#F1F9F4;border-color:#BFE0CB;}
 .checklist-item.is-done .checklist-item-texto{color:#9C9488;text-decoration:line-through;}
-.checklist-check{padding-top:2px;}
-.checklist-check input{width:18px;height:18px;cursor:pointer;}
 .checklist-item-body{flex:1;min-width:0;}
 .checklist-item-texto{font-size:13.5px;color:var(--ink);line-height:1.4;}
 .checklist-item-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;}
@@ -3526,10 +4369,51 @@ const CSS = `
 .checklist-person-id{display:flex;align-items:center;gap:9px;min-width:0;}
 .checklist-person-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
 .checklist-person-name{font-family:Georgia,serif;font-size:14.5px;font-weight:700;}
+.checklist-person-prog{display:flex;align-items:center;gap:8px;}
+.checklist-person-bar{width:70px;height:6px;background:rgba(255,255,255,.85);border-radius:6px;overflow:hidden;}
+.checklist-person-bar div{height:100%;border-radius:6px;transition:width .3s;}
 .checklist-person-counter{font-size:11px;font-weight:700;color:var(--muted);background:rgba(255,255,255,.7);padding:3px 9px;border-radius:12px;white-space:nowrap;}
 .checklist-person-body{padding:2px 12px 10px;}
-.checklist-item.is-dispensada{opacity:.75;}
+.checklist-item.is-dispensada{opacity:.75;background:#F6F3EC;border-style:dashed;}
 .checklist-tag-dispensada{font-size:10.5px;font-weight:700;color:#6B6560;background:#EFEAE0;padding:2px 7px;border-radius:10px;}
+.salvamar-tag{display:inline-block;margin-left:6px;font-size:9px;font-weight:700;letter-spacing:.04em;color:#2A5FA5;background:#E3EDFB;padding:1px 6px;border-radius:8px;vertical-align:middle;}
+.salv-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0;}
+.salv-kpi{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;background:var(--panel);border:1px solid var(--border);border-top:3px solid #C9C2B4;border-radius:12px;cursor:pointer;font-family:inherit;}
+.salv-kpi.active{border-top-color:#A51C30;box-shadow:0 1px 6px rgba(0,0,0,.08);}
+.salv-kpi-label{font-size:11px;font-weight:700;color:var(--muted);text-align:center;}
+.salv-kpi-num{font-size:26px;font-weight:700;font-family:Georgia,serif;color:var(--ink);}
+.salv-lembretes{margin-bottom:0;border-left:4px solid #E0A526;background:linear-gradient(135deg,#FFF9E8 0%,#FFFFFF 60%);}
+.salv-lembretes.completo{border-left-color:#2F7D4F;background:linear-gradient(135deg,#EAF6EE 0%,#FFFFFF 60%);}
+.salv-lembretes-titulo{display:flex;align-items:center;gap:10px;}
+.salv-lembretes-icon{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:#FBE9B7;color:#9A6A00;}
+.salv-lembretes.completo .salv-lembretes-icon{background:#CFEBD8;color:#2F7D4F;}
+.salv-prog{display:flex;align-items:center;gap:10px;margin:6px 0 12px;}
+.salv-prog-bar{flex:1;height:8px;background:#EDE6D4;border-radius:6px;overflow:hidden;}
+.salv-prog-fill{height:100%;background:linear-gradient(90deg,#E0A526,#2F7D4F);border-radius:6px;transition:width .3s;}
+.salv-prog-txt{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;}
+.salv-checks{display:flex;flex-direction:column;gap:6px;}
+.salv-check{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #EFE6CC;border-radius:10px;cursor:pointer;font-size:14px;transition:background .15s,border-color .15s;}
+.salv-check:hover{border-color:#E0A526;}
+.salv-check.ro{cursor:default;}
+.salv-check input{position:absolute;opacity:0;pointer-events:none;}
+.salv-check-box{flex-shrink:0;width:22px;height:22px;border-radius:7px;border:2px solid #C9B27A;display:inline-flex;align-items:center;justify-content:center;color:#fff;background:#fff;}
+.salv-check.feito{background:#F1F9F4;border-color:#BFE0CB;}
+.salv-check.feito .salv-check-box{background:#2F7D4F;border-color:#2F7D4F;}
+.salv-check.feito .salv-check-txt{text-decoration:line-through;color:var(--muted);}
+.salv-check input:focus-visible + .salv-check-box{outline:2px solid #2A5FA5;outline-offset:2px;}
+.salv-lembretes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.salv-lembretes-list{margin:0;padding-left:18px;font-size:13.5px;line-height:1.6;}
+.salv-lembrete-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:#F5F0E6;border-radius:8px;font-size:13px;}
+.salv-row,.salv-registro{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px;border-bottom:1px solid #F0EBE0;}
+.salv-row:last-child,.salv-registro:last-child{border-bottom:none;}
+.salv-row-main{flex:1;min-width:0;}
+.salv-row-title{font-size:13.5px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.salv-row-tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+.salv-row-total{border-top:2px solid var(--border);font-weight:700;}
+.salv-horas-valor{font-size:15px;font-weight:700;font-family:Georgia,serif;}
+.salv-alerta{background:#FDF3F3;border-radius:8px;padding:10px 12px;margin-bottom:6px;border-bottom:none;}
+.salv-transfer-item{display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;}
+@media(max-width:700px){.salv-kpis{grid-template-columns:repeat(2,1fr);}}
 .checklist-tag-feita{font-size:10.5px;font-weight:700;color:#2F7D4F;background:#E4F3E9;padding:2px 7px;border-radius:10px;}
 .checklist-hist-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 16px;}
 .checklist-hist-row{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid #F0EBE0;border-left:3px solid transparent;}
@@ -3608,7 +4492,6 @@ const CSS = `
   .ov-num{font-size:22px;}
 }
 `;
-
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
