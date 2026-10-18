@@ -790,14 +790,17 @@ function ServicosPanel({ viaturas, embarcacoes, servicos, onSave, onDelete, visa
   const todos = [...viaturas, ...embarcacoes];
   const sel = selId ? todos.find((v) => v.id === selId) : null;
   const doVeiculo = (id) => servicos.filter((x) => x.veiculoId === id);
-  const geral = resumoServicos(servicos);
+  const [buscaServ, setBuscaServ] = useState("");
+  const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   if (sel) {
-    const lista = doVeiculo(sel.id).sort((a, b) => (parseBRDate(b.data) || 0) - (parseBRDate(a.data) || 0));
-    const r = resumoServicos(lista);
+    const todosDoVeiculo = doVeiculo(sel.id).sort((a, b) => (parseBRDate(b.data) || 0) - (parseBRDate(a.data) || 0));
+    const nb = norm(buscaServ.trim());
+    const lista = nb ? todosDoVeiculo.filter((x) => [x.titulo, x.descricao, x.executor, x.data].some((t) => norm(t).includes(nb))) : todosDoVeiculo;
+    const r = resumoServicos(todosDoVeiculo);
     return (
       <>
-        <button className="link-btn" style={{ marginBottom: 10 }} onClick={() => { setSelId(null); setAberto(null); }}><ChevronLeft size={14} /> Voltar para a lista</button>
+        <button className="link-btn" style={{ marginBottom: 10 }} onClick={() => { setSelId(null); setAberto(null); setBuscaServ(""); }}><ChevronLeft size={14} /> Voltar para a lista</button>
         <div className="serv-head">
           <div className="serv-head-foto" style={sel.foto ? { background: `${sel.fotoPosX ?? 50}% ${sel.fotoPosY ?? 50}% / cover no-repeat url(${sel.foto})` } : {}}>{!sel.foto && <VIcon tipo={sel.tipo} size={28} />}</div>
           <div className="serv-head-info">
@@ -810,12 +813,20 @@ function ServicosPanel({ viaturas, embarcacoes, servicos, onSave, onDelete, visa
             </div>
           </div>
           <div className="serv-head-acoes">
-            <button className="btn-secondary sm" onClick={() => setRelatorio(true)} disabled={lista.length === 0}><Download size={14} /> Baixar relatório</button>
+            <button className="btn-secondary sm" onClick={() => setRelatorio(true)} disabled={todosDoVeiculo.length === 0}><Download size={14} /> Baixar relatório</button>
             {!visaoExterna && <button className="btn-primary sm internal-only" onClick={() => setModal("novo")}><Plus size={14} /> Registrar serviço</button>}
           </div>
         </div>
-        {lista.length === 0 ? (
+        {todosDoVeiculo.length > 0 && (
+          <div className="serv-busca-linha">
+            <input className="equipe-busca serv-busca" value={buscaServ} onChange={(e) => setBuscaServ(e.target.value)} placeholder="Buscar serviço pelo nome…" />
+            {nb && <span className="muted-sm">{lista.length} de {todosDoVeiculo.length} serviço(s)</span>}
+          </div>
+        )}
+        {todosDoVeiculo.length === 0 ? (
           <div className="panel"><div className="empty">Nenhum serviço registrado para esta viatura.{!visaoExterna && " Clique em “Registrar serviço” para começar."}</div></div>
+        ) : lista.length === 0 ? (
+          <div className="panel"><div className="empty">Nenhum serviço encontrado para “{buscaServ}”.</div></div>
         ) : (
           <div className="serv-lista">
             {lista.map((x) => {
@@ -854,44 +865,46 @@ function ServicosPanel({ viaturas, embarcacoes, servicos, onSave, onDelete, visa
           </div>
         )}
         {modal && <ServicoModal veiculo={sel} initial={modal === "novo" ? null : modal} onClose={() => setModal(null)} onSave={(sv, fotos) => { onSave(sv, fotos); setModal(null); }} />}
-        {relatorio && <ServicosRelatorioModal veiculo={sel} servicos={lista} onClose={() => setRelatorio(false)} />}
+        {relatorio && <ServicosRelatorioModal veiculo={sel} servicos={todosDoVeiculo} onClose={() => setRelatorio(false)} />}
       </>
     );
   }
 
   const q = busca.trim().toLowerCase();
-  const itens = (grupo === "viaturas" ? viaturas : embarcacoes).filter((v) => !q || String(v.nome).toLowerCase().includes(q) || String(v.tipo || "").toLowerCase().includes(q));
+  const nq = norm(q);
+  const achados = {};
+  const itens = (grupo === "viaturas" ? viaturas : embarcacoes).filter((v) => {
+    if (!nq) return true;
+    if (norm(v.nome).includes(nq) || norm(v.tipo).includes(nq)) return true;
+    const hits = doVeiculo(v.id).filter((x) => norm(x.titulo).includes(nq) || norm(x.descricao).includes(nq) || norm(x.executor).includes(nq));
+    if (hits.length) { achados[v.id] = hits.length === 1 ? `Serviço: ${hits[0].titulo}` : `${hits.length} serviços encontrados`; return true; }
+    return false;
+  });
   return (
     <>
       <div className="section-head"><h2>Serviços de manutenção</h2></div>
-      <div className="muted-sm" style={{ marginBottom: 10 }}>Clique em uma viatura para ver os serviços já feitos e as validades.{geral.vencida > 0 && <> · <b style={{ color: "#E01E3C" }}>{geral.vencida} serviço(s) com garantia vencida</b></>}{geral.vencendo > 0 && <> · <b style={{ color: "#9A6700" }}>{geral.vencendo} vencendo em até 30 dias</b></>}</div>
+      <div className="muted-sm" style={{ marginBottom: 10 }}>Clique em uma viatura para ver os serviços já feitos e as validades.</div>
       <div className="equipe-toolbar">
         <div className="toggle">
           <button className={grupo === "viaturas" ? "toggle-btn active" : "toggle-btn"} onClick={() => setGrupo("viaturas")}>Viaturas</button>
           <button className={grupo === "embarcacoes" ? "toggle-btn active" : "toggle-btn"} onClick={() => setGrupo("embarcacoes")}>Embarcações</button>
         </div>
-        <input className="equipe-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar viatura…" />
+        <input className="equipe-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar viatura ou serviço…" />
       </div>
       <div className="grid-vehicles serv-grid">
         {itens.map((v) => {
           const r = resumoServicos(doVeiculo(v.id));
           return (
-            <button key={v.id} type="button" className="vcard serv-card" onClick={() => setSelId(v.id)}>
+            <button key={v.id} type="button" className="vcard serv-card" onClick={() => { setBuscaServ(q); setSelId(v.id); }}>
               <div className="vcard-media serv-card-media" style={v.foto ? { background: `${v.fotoPosX ?? 50}% ${v.fotoPosY ?? 50}% / cover no-repeat url(${v.foto})` } : {}}>
                 {!v.foto && <VIcon tipo={v.tipo} size={44} />}
-                {r.vencida > 0 && <span className="pill serv-flag" style={{ background: "#FFE2E6", color: "#E01E3C" }}>{r.vencida} vencido{r.vencida > 1 ? "s" : ""}</span>}
               </div>
               <div className="vcard-body">
                 <div className="vcard-name">{v.nome}</div>
                 <div className="vcard-type">{v.tipo}</div>
                 <div className="serv-chips">
-                  {r.total === 0 ? <span className="serv-chip">Nenhum serviço registrado</span> : (
-                    <>
-                      <span className="serv-chip">{r.total} serviço{r.total === 1 ? "" : "s"}</span>
-                      {r.vigente + r.vencendo > 0 && <span className="serv-chip serv-chip-ok">{r.vigente + r.vencendo} em garantia</span>}
-                      {r.vencida > 0 && <span className="serv-chip serv-chip-venc">{r.vencida} vencido{r.vencida > 1 ? "s" : ""}</span>}
-                    </>
-                  )}
+                  <span className="serv-chip">{r.total === 0 ? "Nenhum serviço registrado" : `${r.total} serviço${r.total === 1 ? "" : "s"}`}</span>
+                  {q && achados[v.id] && <span className="serv-chip serv-chip-ok">{achados[v.id]}</span>}
                 </div>
               </div>
             </button>
@@ -4901,6 +4914,9 @@ const CSS = `
 .equipe-chip button{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:inherit;display:flex;opacity:.7;}
 .equipe-chip button:hover{opacity:1;color:#E01E3C;}
 .equipe-nome{text-transform:uppercase;font-size:15.5px;font-weight:800;letter-spacing:.02em;color:#B80F2A;line-height:1.2;}
+.serv-busca-linha{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.serv-busca{min-width:280px;flex:0 1 380px;}
+@media (max-width:700px){.serv-busca{min-width:0;flex:1 1 100%;}}
 .serv-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 .serv-card{text-align:left;cursor:pointer;padding:0;font:inherit;color:inherit;transition:transform .18s ease,box-shadow .18s ease;}
 .serv-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md,0 10px 24px -12px rgba(15,22,50,.35));}
