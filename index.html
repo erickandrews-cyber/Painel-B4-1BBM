@@ -645,6 +645,17 @@ function dataValidaBR(s) {
   const dt = new Date(y, mo - 1, d);
   return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
+function somarDiasBR(dataBR, n) {
+  const d = parseBRDate(dataBR);
+  if (!d) return "";
+  d.setDate(d.getDate() + n);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+function diasEntreBR(aBR, bBR) {
+  const a = parseBRDate(aBR), b = parseBRDate(bBR);
+  if (!a || !b) return null;
+  return Math.round((b - a) / 86400000);
+}
 function hojeISO() { return brParaISO(new Date().toLocaleDateString("pt-BR")); }
 function statusGarantia(sv) {
   const v = parseBRDate(sv.validade);
@@ -677,10 +688,27 @@ function ServicoFotos({ id, n, onView }) {
 function ServicoModal({ veiculo, initial, onClose, onSave }) {
   const [form, setForm] = useState(initial ? { ...initial } : { titulo: "", descricao: "", executor: "", data: new Date().toLocaleDateString("pt-BR"), validade: "" });
   const [fotos, setFotos] = useState([]);
+  const [dias, setDias] = useState(() => {
+    if (initial && initial.validade && dataValidaBR(initial.data) && dataValidaBR(initial.validade)) { const n = diasEntreBR(initial.data, initial.validade); return n != null && n >= 0 ? String(n) : ""; }
+    return "";
+  });
   const [carregando, setCarregando] = useState(!!(initial && initial.nFotos));
   useEffect(() => { if (initial && initial.nFotos) lerFotosServico(initial.id).then((f) => { setFotos(f); setCarregando(false); }); }, []);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const setData = (k) => (e) => setForm((f) => ({ ...f, [k]: maskDataBR(e.target.value) }));
+  const onData = (e) => {
+    const nova = maskDataBR(e.target.value);
+    setForm((f) => ({ ...f, data: nova, validade: dias !== "" && dataValidaBR(nova) ? somarDiasBR(nova, Number(dias)) : f.validade }));
+  };
+  const aplicarDias = (v) => {
+    const limpo = String(v).replace(/\D/g, "").slice(0, 5);
+    setDias(limpo);
+    if (limpo !== "" && dataValidaBR(form.data)) setForm((f) => ({ ...f, validade: somarDiasBR(f.data, Number(limpo)) }));
+  };
+  const onValidade = (e) => {
+    const nova = maskDataBR(e.target.value);
+    setForm((f) => ({ ...f, validade: nova }));
+    if (dataValidaBR(form.data) && dataValidaBR(nova)) { const n = diasEntreBR(form.data, nova); setDias(n != null && n >= 0 ? String(n) : ""); } else setDias("");
+  };
   const addFoto = async (files) => {
     for (const file of Array.from(files)) {
       try {
@@ -702,13 +730,19 @@ function ServicoModal({ veiculo, initial, onClose, onSave }) {
           <label>Serviço realizado<input value={form.titulo} onChange={set("titulo")} placeholder="Ex: Troca do kit de embreagem" /></label>
           <label>Detalhes do serviço (opcional)<textarea rows={3} value={form.descricao} onChange={set("descricao")} placeholder="O que foi feito, peças trocadas, observações…" /></label>
           <label>Executado por (opcional)<input value={form.executor || ""} onChange={set("executor")} placeholder="Ex: Oficina X / SEMAN" /></label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <label style={{ flex: 1 }}>Data do serviço<input value={form.data || ""} onChange={setData("data")} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} onFocus={(e) => e.target.select()} /></label>
-            <label style={{ flex: 1 }}>Garantia / validade até<input value={form.validade || ""} onChange={setData("validade")} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} onFocus={(e) => e.target.select()} /></label>
+          <div className="serv-datas">
+            <label>Data do serviço<input value={form.data || ""} onChange={onData} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} onFocus={(e) => e.target.select()} /></label>
+            <label>Garantia (dias)<input value={dias} onChange={(e) => aplicarDias(e.target.value)} placeholder="Ex: 60" inputMode="numeric" /></label>
+            <label>Vence em<input value={form.validade || ""} onChange={onValidade} placeholder="dd/mm/aaaa" inputMode="numeric" maxLength={10} onFocus={(e) => e.target.select()} /></label>
+          </div>
+          <div className="serv-atalhos">
+            <span className="muted-sm">Atalhos:</span>
+            {[[30, "30 dias"], [90, "90 dias"], [180, "6 meses"], [365, "1 ano"]].map(([n, rot]) => <button key={n} type="button" className="serv-atalho" onClick={() => aplicarDias(String(n))}>{rot}</button>)}
+            {(dias !== "" || form.validade) && <button type="button" className="serv-atalho serv-atalho-limpar" onClick={() => { setDias(""); setForm((f) => ({ ...f, validade: "" })); }}>Sem garantia</button>}
           </div>
           {((form.data && !dataOk) || !validadeOk) && <div className="muted-sm" style={{ color: "#E01E3C" }}>Digite a data completa no formato dd/mm/aaaa (ex: 23/07/2026).</div>}
           {validadeAntes && <div className="muted-sm" style={{ color: "#E01E3C" }}>A validade está antes da data do serviço — esse serviço aparecerá como vencido.</div>}
-          <div className="muted-sm" style={{ marginTop: -4 }}>Deixe a validade em branco se o serviço não tem garantia.</div>
+          <div className="muted-sm" style={{ marginTop: -4 }}>Informe os dias e o vencimento é calculado a partir da data do serviço — ou digite o vencimento direto. Sem garantia: deixe em branco.</div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Fotos (até 4)</div>
             {carregando && <div className="muted-sm">Carregando fotos…</div>}
@@ -4931,6 +4965,13 @@ const CSS = `
 .equipe-chip button{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:inherit;display:flex;opacity:.7;}
 .equipe-chip button:hover{opacity:1;color:#E01E3C;}
 .equipe-nome{text-transform:uppercase;font-size:15.5px;font-weight:800;letter-spacing:.02em;color:#B80F2A;line-height:1.2;}
+.serv-datas{display:grid;grid-template-columns:1.2fr .8fr 1.2fr;gap:8px;}
+.serv-datas label{min-width:0;}
+.serv-atalhos{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:-4px;}
+.serv-atalho{border:1px solid var(--border);background:#fff;border-radius:20px;padding:3px 10px;font-size:11.5px;font-weight:700;color:#1D4ED8;cursor:pointer;}
+.serv-atalho:hover{background:#E8EEFC;}
+.serv-atalho-limpar{color:var(--muted);}
+@media (max-width:480px){.serv-datas{grid-template-columns:1fr 1fr;}.serv-datas label:last-child{grid-column:1 / -1;}}
 .serv-busca-linha{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
 .serv-busca{min-width:280px;flex:0 1 380px;}
 @media (max-width:700px){.serv-busca{min-width:0;flex:1 1 100%;}}
