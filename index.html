@@ -221,6 +221,10 @@ const Users = mkIcon([
   { tag: "path", attrs: { d: "M16 4.6a3.4 3.4 0 0 1 0 6.6" } },
   { tag: "path", attrs: { d: "M18 14.4c2 .7 3.5 2.5 3.5 5.6" } },
 ]);
+const ShieldCheck = mkIcon([
+  { tag: "path", attrs: { d: "M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z" } },
+  { tag: "path", attrs: { d: "M8.5 12.2l2.3 2.3 4.7-5" } },
+]);
 
 const { useState, useEffect } = React;
 
@@ -595,10 +599,10 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           {item("salvamar", "SALVAMAR", LifeBuoy)}
           {item("chaves", "Chaves", Key)}
           {item("manutencao", "Manutenção", Wrench)}
+          {item("servicos", "Serviços", ShieldCheck)}
           {item("cautelas", "Cautelas", ClipboardList)}
           {item("escalas", "Escalas", CalendarDays)}
           {item("checklist", "Checklist do Dia", ListChecks)}
-          {item("alertas", "Alertas", AlertTriangle)}
         </nav>
 
         {!visaoExterna && (
@@ -616,6 +620,285 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           Corpo de Bombeiros Militar<br />Painel de Logística — protótipo visual
         </div>
       </aside>
+    </>
+  );
+}
+
+/* ---------------- Serviços de manutenção ---------------- */
+function isoParaBR(iso) { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+function brParaISO(br) {
+  const dt = parseBRDate(br);
+  if (!dt) return "";
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+function hojeISO() { return brParaISO(new Date().toLocaleDateString("pt-BR")); }
+function statusGarantia(sv) {
+  const v = parseBRDate(sv.validade);
+  if (!v) return { cod: "sem", label: "Sem garantia informada", fg: "#5B6585", bg: "#EEF1F8" };
+  const h = new Date(); h.setHours(0, 0, 0, 0);
+  const dias = Math.round((v - h) / 86400000);
+  if (dias < 0) return { cod: "vencida", label: `Vencida há ${-dias} dia${-dias > 1 ? "s" : ""}`, fg: "#E01E3C", bg: "#FFE2E6" };
+  if (dias === 0) return { cod: "vencendo", label: "Vence hoje", fg: "#9A6700", bg: "#FFF1C9" };
+  if (dias <= 30) return { cod: "vencendo", label: `Vence em ${dias} dia${dias > 1 ? "s" : ""}`, fg: "#9A6700", bg: "#FFF1C9" };
+  return { cod: "vigente", label: `Em garantia · até ${sv.validade}`, fg: "#1E7A4A", bg: "#DDF4E7" };
+}
+function resumoServicos(lista) {
+  const r = { total: lista.length, vigente: 0, vencendo: 0, vencida: 0, sem: 0 };
+  lista.forEach((x) => { r[statusGarantia(x).cod] += 1; });
+  return r;
+}
+async function lerFotosServico(id) {
+  try { const res = await window.storage.get("b4-servfotos-" + id, true); const arr = JSON.parse(res.value); return Array.isArray(arr) ? arr : []; }
+  catch (e) { return []; }
+}
+
+function ServicoFotos({ id, n, onView }) {
+  const [fotos, setFotos] = useState(null);
+  useEffect(() => { let vivo = true; if (n > 0) lerFotosServico(id).then((f) => vivo && setFotos(f)); return () => { vivo = false; }; }, [id, n]);
+  if (!n) return null;
+  if (fotos === null) return <div className="muted-sm">Carregando fotos…</div>;
+  return <div className="serv-fotos">{fotos.map((f, i) => <img key={i} src={f} alt="" onClick={() => onView(f)} />)}</div>;
+}
+
+function ServicoModal({ veiculo, initial, onClose, onSave }) {
+  const [form, setForm] = useState(initial ? { ...initial } : { titulo: "", descricao: "", executor: "", data: new Date().toLocaleDateString("pt-BR"), validade: "" });
+  const [fotos, setFotos] = useState([]);
+  const [carregando, setCarregando] = useState(!!(initial && initial.nFotos));
+  useEffect(() => { if (initial && initial.nFotos) lerFotosServico(initial.id).then((f) => { setFotos(f); setCarregando(false); }); }, []);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setData = (k) => (e) => setForm((f) => ({ ...f, [k]: isoParaBR(e.target.value) }));
+  const addFoto = async (files) => {
+    for (const file of Array.from(files)) {
+      try {
+        const url = await fileToCompressedDataUrl(file, 800, 0.65);
+        setFotos((atual) => (atual.length >= 4 ? atual : [...atual, url]));
+      } catch (e) { alert("Não foi possível processar essa imagem."); }
+    }
+  };
+  const tamanho = fotos.reduce((t, f) => t + f.length, 0);
+  const validadeAntes = form.validade && form.data && parseBRDate(form.validade) < parseBRDate(form.data);
+  const podeSalvar = form.titulo.trim() && parseBRDate(form.data) && !carregando && tamanho < 900000;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar serviço" : "Registrar serviço"} — {veiculo.nome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Serviço realizado<input value={form.titulo} onChange={set("titulo")} placeholder="Ex: Troca do kit de embreagem" /></label>
+          <label>Detalhes do serviço (opcional)<textarea rows={3} value={form.descricao} onChange={set("descricao")} placeholder="O que foi feito, peças trocadas, observações…" /></label>
+          <label>Executado por (opcional)<input value={form.executor || ""} onChange={set("executor")} placeholder="Ex: Oficina X / SEMAN" /></label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <label style={{ flex: 1 }}>Data do serviço<input type="date" value={brParaISO(form.data)} onChange={setData("data")} /></label>
+            <label style={{ flex: 1 }}>Garantia / validade até<input type="date" value={brParaISO(form.validade)} onChange={setData("validade")} /></label>
+          </div>
+          {validadeAntes && <div className="muted-sm" style={{ color: "#E01E3C" }}>A validade está antes da data do serviço — esse serviço aparecerá como vencido.</div>}
+          <div className="muted-sm" style={{ marginTop: -4 }}>Deixe a validade em branco se o serviço não tem garantia.</div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Fotos (até 4)</div>
+            {carregando && <div className="muted-sm">Carregando fotos…</div>}
+            {fotos.length > 0 && (
+              <div className="serv-fotos serv-fotos-edit">
+                {fotos.map((f, i) => (
+                  <div key={i} className="serv-foto-item"><img src={f} alt="" /><button type="button" title="Remover foto" onClick={() => setFotos(fotos.filter((_, j) => j !== i))}><X size={11} /></button></div>
+                ))}
+              </div>
+            )}
+            {fotos.length < 4 && (
+              <label className="btn-secondary sm" style={{ cursor: "pointer", marginTop: 6, display: "inline-flex" }}>
+                <Camera size={13} /> Adicionar foto
+                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { addFoto(e.target.files); e.target.value = ""; }} />
+              </label>
+            )}
+            {tamanho >= 900000 && <div className="muted-sm" style={{ color: "#E01E3C" }}>As fotos ficaram pesadas demais. Remova alguma.</div>}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-primary" disabled={!podeSalvar} onClick={() => onSave({ ...form, titulo: form.titulo.trim(), id: form.id || uid(), veiculoId: veiculo.id, veiculoNome: veiculo.nome, nFotos: fotos.length }, fotos)}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServicosRelatorioModal({ veiculo, servicos, onClose }) {
+  const [incluirFotos, setIncluirFotos] = useState(true);
+  const [ocupado, setOcupado] = useState(false);
+  const lista = [...servicos].sort((a, b) => (parseBRDate(b.data) || 0) - (parseBRDate(a.data) || 0));
+  const r = resumoServicos(lista);
+  const nomeArq = "servicos-" + veiculo.nome.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").toLowerCase();
+  const baixarCSV = () => {
+    const cel = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const linhas = [["Viatura", "Data do serviço", "Serviço", "Detalhes", "Executado por", "Garantia até", "Situação da garantia"]];
+    lista.forEach((x) => linhas.push([veiculo.nome, x.data, x.titulo, x.descricao || "", x.executor || "", x.validade || "", statusGarantia(x).label]));
+    const csv = "﻿" + linhas.map((l) => l.map(cel).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = nomeArq + ".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  const gerarPDF = async () => {
+    setOcupado(true);
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+    const fotosPor = {};
+    if (incluirFotos) for (const x of lista) if (x.nFotos) fotosPor[x.id] = await lerFotosServico(x.id);
+    const cor = { vigente: "#1E7A4A", vencendo: "#9A6700", vencida: "#E01E3C", sem: "#555" };
+    const linhasT = lista.map((x) => { const st = statusGarantia(x); return `<tr><td>${esc(x.data)}</td><td><b>${esc(x.titulo)}</b>${x.descricao ? "<br>" + esc(x.descricao) : ""}${x.executor ? "<br><i>Executado por: " + esc(x.executor) + "</i>" : ""}${(fotosPor[x.id] || []).length ? '<div class="fotos">' + fotosPor[x.id].map((f) => `<img src="${f}">`).join("") + "</div>" : ""}</td><td>${esc(x.validade || "—")}</td><td style="color:${cor[st.cod]};font-weight:bold">${esc(st.label)}</td></tr>`; }).join("");
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(nomeArq)}</title><style>
+      @page{size:A4;margin:14mm;}
+      body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;}
+      h1{font-size:14px;text-align:center;margin:0;} h2{font-size:12px;text-align:center;margin:2px 0 12px;font-weight:normal;}
+      .meta{display:flex;gap:24px;justify-content:center;margin-bottom:8px;}
+      table{width:100%;border-collapse:collapse;margin-top:8px;} th,td{border:1px solid #444;padding:5px 6px;text-align:left;vertical-align:top;} th{background:#eee;}
+      tr{page-break-inside:avoid;} .fotos{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;} .fotos img{height:90px;border:1px solid #999;}
+      </style></head><body>
+      <h1>CORPO DE BOMBEIROS MILITAR DA PARAÍBA — 1º BATALHÃO DE BOMBEIRO MILITAR</h1>
+      <h2>Seção de Logística (B/4) · Relatório de serviços de manutenção</h2>
+      <div class="meta"><span><b>Viatura:</b> ${esc(veiculo.nome)}${veiculo.tipo ? " — " + esc(veiculo.tipo) : ""}</span><span><b>Emitido em:</b> ${new Date().toLocaleDateString("pt-BR")}</span></div>
+      <div class="meta"><span><b>Serviços:</b> ${r.total}</span><span><b>Em garantia:</b> ${r.vigente + r.vencendo}</span><span><b>Vencidos:</b> ${r.vencida}</span><span><b>Sem garantia:</b> ${r.sem}</span></div>
+      <table><tr><th style="width:70px">Data</th><th>Serviço</th><th style="width:80px">Garantia até</th><th style="width:110px">Situação</th></tr>${linhasT || '<tr><td colspan="4">Nenhum serviço registrado.</td></tr>'}</table>
+      <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    setOcupado(false);
+    if (!w) { alert("O navegador bloqueou a nova janela. Permita pop-ups para este site e tente de novo."); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>Relatório de serviços — {veiculo.nome}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <div className="muted-sm">{r.total} serviço(s) · {r.vigente + r.vencendo} em garantia · {r.vencida} vencido(s) · {r.sem} sem garantia</div>
+          <label style={{ flexDirection: "row", alignItems: "center", gap: 8, display: "flex" }}><input type="checkbox" checked={incluirFotos} onChange={(e) => setIncluirFotos(e.target.checked)} style={{ width: "auto" }} /> Incluir fotos no PDF</label>
+          <div className="muted-sm">O relatório traz: data, serviço, detalhes, quem executou, validade da garantia e se ainda está valendo.</div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn-secondary" onClick={baixarCSV} disabled={lista.length === 0}><Download size={14} /> Planilha (CSV)</button>
+          <button className="btn-primary" onClick={gerarPDF} disabled={lista.length === 0 || ocupado}><Download size={14} /> {ocupado ? "Gerando…" : "Baixar PDF"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServicosPanel({ viaturas, embarcacoes, servicos, onSave, onDelete, visaoExterna, askConfirm, onViewPhoto }) {
+  const [grupo, setGrupo] = useState("viaturas");
+  const [selId, setSelId] = useState(null);
+  const [aberto, setAberto] = useState(null);
+  const [modal, setModal] = useState(null); // null | "novo" | servico
+  const [relatorio, setRelatorio] = useState(false);
+  const [busca, setBusca] = useState("");
+  const todos = [...viaturas, ...embarcacoes];
+  const sel = selId ? todos.find((v) => v.id === selId) : null;
+  const doVeiculo = (id) => servicos.filter((x) => x.veiculoId === id);
+  const geral = resumoServicos(servicos);
+
+  if (sel) {
+    const lista = doVeiculo(sel.id).sort((a, b) => (parseBRDate(b.data) || 0) - (parseBRDate(a.data) || 0));
+    const r = resumoServicos(lista);
+    return (
+      <>
+        <button className="link-btn" style={{ marginBottom: 10 }} onClick={() => { setSelId(null); setAberto(null); }}><ChevronLeft size={14} /> Voltar para a lista</button>
+        <div className="serv-head">
+          <div className="serv-head-foto" style={sel.foto ? { background: `${sel.fotoPosX ?? 50}% ${sel.fotoPosY ?? 50}% / cover no-repeat url(${sel.foto})` } : {}}>{!sel.foto && <VIcon tipo={sel.tipo} size={28} />}</div>
+          <div className="serv-head-info">
+            <h2 className="serv-head-nome">{sel.nome}</h2>
+            <div className="muted-sm">{sel.tipo}</div>
+            <div className="serv-chips">
+              <span className="serv-chip">{r.total} serviço{r.total === 1 ? "" : "s"}</span>
+              {r.vigente + r.vencendo > 0 && <span className="serv-chip serv-chip-ok">{r.vigente + r.vencendo} em garantia</span>}
+              {r.vencida > 0 && <span className="serv-chip serv-chip-venc">{r.vencida} vencido{r.vencida === 1 ? "" : "s"}</span>}
+            </div>
+          </div>
+          <div className="serv-head-acoes">
+            <button className="btn-secondary sm" onClick={() => setRelatorio(true)} disabled={lista.length === 0}><Download size={14} /> Baixar relatório</button>
+            {!visaoExterna && <button className="btn-primary sm internal-only" onClick={() => setModal("novo")}><Plus size={14} /> Registrar serviço</button>}
+          </div>
+        </div>
+        {lista.length === 0 ? (
+          <div className="panel"><div className="empty">Nenhum serviço registrado para esta viatura.{!visaoExterna && " Clique em “Registrar serviço” para começar."}</div></div>
+        ) : (
+          <div className="serv-lista">
+            {lista.map((x) => {
+              const st = statusGarantia(x);
+              const aberta = aberto === x.id;
+              return (
+                <div key={x.id} className={"serv-item" + (aberta ? " aberto" : "")} style={{ borderLeftColor: st.fg }}>
+                  <button type="button" className="serv-item-top" onClick={() => setAberto(aberta ? null : x.id)}>
+                    <div className="serv-item-main">
+                      <div className="serv-item-titulo">{x.titulo}</div>
+                      <div className="serv-item-meta">{x.data}{x.nFotos ? ` · ${x.nFotos} foto${x.nFotos > 1 ? "s" : ""}` : ""}</div>
+                    </div>
+                    <span className="pill serv-pill" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+                    <ChevronDown size={16} className="serv-seta" />
+                  </button>
+                  {aberta && (
+                    <div className="serv-item-corpo">
+                      {x.descricao && <div className="serv-desc">{x.descricao}</div>}
+                      <div className="serv-detalhes">
+                        <span><b>Data do serviço:</b> {x.data}</span>
+                        <span><b>Garantia até:</b> {x.validade || "—"}</span>
+                        {x.executor && <span><b>Executado por:</b> {x.executor}</span>}
+                      </div>
+                      <ServicoFotos id={x.id} n={x.nFotos || 0} onView={onViewPhoto} />
+                      {!visaoExterna && (
+                        <div className="serv-item-acoes internal-only">
+                          <button className="btn-secondary sm" onClick={() => setModal(x)}><Pencil size={13} /> Editar</button>
+                          <button className="btn-ghost" onClick={() => askConfirm(`Excluir o serviço “${x.titulo}”?`, () => onDelete(x))}><Trash2 size={13} /> Excluir</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {modal && <ServicoModal veiculo={sel} initial={modal === "novo" ? null : modal} onClose={() => setModal(null)} onSave={(sv, fotos) => { onSave(sv, fotos); setModal(null); }} />}
+        {relatorio && <ServicosRelatorioModal veiculo={sel} servicos={lista} onClose={() => setRelatorio(false)} />}
+      </>
+    );
+  }
+
+  const q = busca.trim().toLowerCase();
+  const itens = (grupo === "viaturas" ? viaturas : embarcacoes).filter((v) => !q || String(v.nome).toLowerCase().includes(q) || String(v.tipo || "").toLowerCase().includes(q));
+  return (
+    <>
+      <div className="section-head"><h2>Serviços de manutenção</h2></div>
+      <div className="muted-sm" style={{ marginBottom: 10 }}>Clique em uma viatura para ver os serviços já feitos e as validades.{geral.vencida > 0 && <> · <b style={{ color: "#E01E3C" }}>{geral.vencida} serviço(s) com garantia vencida</b></>}{geral.vencendo > 0 && <> · <b style={{ color: "#9A6700" }}>{geral.vencendo} vencendo em até 30 dias</b></>}</div>
+      <div className="equipe-toolbar">
+        <div className="toggle">
+          <button className={grupo === "viaturas" ? "toggle-btn active" : "toggle-btn"} onClick={() => setGrupo("viaturas")}>Viaturas</button>
+          <button className={grupo === "embarcacoes" ? "toggle-btn active" : "toggle-btn"} onClick={() => setGrupo("embarcacoes")}>Embarcações</button>
+        </div>
+        <input className="equipe-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar viatura…" />
+      </div>
+      <div className="grid-vehicles serv-grid">
+        {itens.map((v) => {
+          const r = resumoServicos(doVeiculo(v.id));
+          return (
+            <button key={v.id} type="button" className="vcard serv-card" onClick={() => setSelId(v.id)}>
+              <div className="vcard-media serv-card-media" style={v.foto ? { background: `${v.fotoPosX ?? 50}% ${v.fotoPosY ?? 50}% / cover no-repeat url(${v.foto})` } : {}}>
+                {!v.foto && <VIcon tipo={v.tipo} size={44} />}
+                {r.vencida > 0 && <span className="pill serv-flag" style={{ background: "#FFE2E6", color: "#E01E3C" }}>{r.vencida} vencido{r.vencida > 1 ? "s" : ""}</span>}
+              </div>
+              <div className="vcard-body">
+                <div className="vcard-name">{v.nome}</div>
+                <div className="vcard-type">{v.tipo}</div>
+                <div className="serv-chips">
+                  {r.total === 0 ? <span className="serv-chip">Nenhum serviço registrado</span> : (
+                    <>
+                      <span className="serv-chip">{r.total} serviço{r.total === 1 ? "" : "s"}</span>
+                      {r.vigente + r.vencendo > 0 && <span className="serv-chip serv-chip-ok">{r.vigente + r.vencendo} em garantia</span>}
+                      {r.vencida > 0 && <span className="serv-chip serv-chip-venc">{r.vencida} vencido{r.vencida > 1 ? "s" : ""}</span>}
+                    </>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+        {itens.length === 0 && <div className="panel"><div className="empty">Nada encontrado.</div></div>}
+      </div>
     </>
   );
 }
@@ -2074,11 +2357,7 @@ function ChecklistPanel({ setorKey, setorLabel, itens, hojeStr, visaoExterna, re
                 onRemove={atrasada ? null : () => fecharObs(it)}
               />
             )
-          ) : (
-            podeAvisarAntes && (
-              <button type="button" className="checklist-obs-toggle" onClick={() => abrirObs(it.id)}>+ Avisar que não vai conseguir fazer hoje</button>
-            )
-          )}
+          ) : null}
         </div>
         {!visaoExterna && (
           <button className="icon-btn icon-danger checklist-item-del" title="Excluir esta tarefa" onClick={() => onRemoveItem(it)}><Trash2 size={13} /></button>
@@ -2920,6 +3199,7 @@ function App() {
   const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
   const [equipe, saveEquipe, readyEquipe] = useShared("b4-equipe", []);
+  const [servicos, saveServicos, readyServicos] = useShared("b4-servicos", []);
   const brasaoMarca = useBrasaoSemFundo(org.brasao);
   const [checklistTemplates, saveChecklistTemplates, readyChecklistTemplates] = useShared("b4-checklist-templates", SEED_CHECKLIST_TEMPLATES);
   const [checklistItens, saveChecklistItens, readyChecklistItens] = useShared("b4-checklist-itens", SEED_CHECKLIST_ITENS);
@@ -2927,7 +3207,7 @@ function App() {
   const [salvamarLembretes, saveSalvamarLembretes, readySalvamarLembretes] = useShared("b4-salvamar-lembretes", {});
   const [salvamarLembretesFeitos, saveSalvamarLembretesFeitos, readySalvamarLembretesFeitos] = useShared("b4-salvamar-lembretes-feitos", {});
 
-  const VALID_TABS = ["equipe", "geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas", "salvamar"];
+  const VALID_TABS = ["equipe", "geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "servicos", "salvamar"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
     return VALID_TABS.includes(h) && h !== "geral" ? h : "equipe";
@@ -3452,6 +3732,7 @@ function App() {
   const subtitleMap = {
     geral: "Controle de Viaturas e Embarcações",
     equipe: "Equipe da Seção de Logística",
+    servicos: "Serviços de manutenção das viaturas",
     viaturas: "Controle de Viaturas e Embarcações",
     embarcacoes: "Controle de Viaturas e Embarcações",
     chaves: "Controle de Viaturas e Embarcações",
@@ -3474,6 +3755,27 @@ function App() {
         <div className="main-col">
           <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} visaoExterna={visaoExterna} onUnlockClick={() => setUnlockModalOpen(true)} onLock={lockEdit} />
           <main className="content" style={brasaoMarca ? { "--brasao-url": `url(${brasaoMarca})` } : undefined}>
+
+            {tab === "servicos" && (
+              readyServicos ? (
+                <ServicosPanel
+                  viaturas={viaturas}
+                  embarcacoes={embarcacoes}
+                  servicos={servicos}
+                  visaoExterna={visaoExterna}
+                  askConfirm={askConfirm}
+                  onViewPhoto={setViewingPhoto}
+                  onSave={async (sv, fotos) => {
+                    saveServicos(servicos.some((x) => x.id === sv.id) ? servicos.map((x) => (x.id === sv.id ? sv : x)) : [sv, ...servicos]);
+                    try { await window.storage.set("b4-servfotos-" + sv.id, JSON.stringify(fotos), true); } catch (e) { alert("Não foi possível salvar as fotos deste serviço."); }
+                  }}
+                  onDelete={async (sv) => {
+                    saveServicos(servicos.filter((x) => x.id !== sv.id));
+                    try { await window.storage.set("b4-servfotos-" + sv.id, "[]", true); } catch (e) {}
+                  }}
+                />
+              ) : <div className="empty">Carregando…</div>
+            )}
 
             {tab === "equipe" && (
               readyEquipe ? <EquipePanel equipe={equipe} onSave={saveEquipe} externa={visaoExterna} askConfirm={askConfirm} /> : <div className="empty">Carregando…</div>
@@ -4105,88 +4407,6 @@ function App() {
               </>
             )}
 
-            {tab === "alertas" && (
-              <>
-                <h2 className="page-title">Alertas e Pendências</h2>
-                <div className="muted-sm" style={{ marginBottom: 14 }}>Itens que exigem atenção da equipe da B/4</div>
-
-                <h3 className="alertas-section-title">Viaturas e Embarcações</h3>
-                <div className="chaves-filtros">
-                  <input
-                    className="chaves-filtro-input"
-                    value={alertasFiltroVeiculo}
-                    onChange={(e) => setAlertasFiltroVeiculo(e.target.value)}
-                    placeholder="Buscar por nome da viatura ou embarcação..."
-                  />
-                </div>
-                <div className="panel" style={{ marginBottom: 20 }}>
-                  {(() => {
-                    const busca = alertasFiltroVeiculo.trim().toLowerCase();
-                    const filtrados = busca ? alertsVeiculos.filter((a) => (a.veiculoNome || "").toLowerCase().includes(busca)) : alertsVeiculos;
-                    if (filtrados.length === 0) {
-                      return <div className="empty">{busca ? "Nenhuma pendência encontrada para essa busca." : "Nenhuma pendência de viaturas/embarcações no momento."}</div>;
-                    }
-                    return filtrados.map((a) => (
-                      <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
-                        <div className="alert-main">
-                          {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
-                          <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {a.problemaId && !visaoExterna && (
-                            <>
-                              <button className="btn-secondary sm internal-only" onClick={() => resolveProblem(a.problemaId)}>Resolvido</button>
-                              <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => deleteProblem(a.problemaId)}><Trash2 size={14} /></button>
-                            </>
-                          )}
-                          {a.salvamarRegId && !visaoExterna && (
-                            <button className="btn-secondary sm internal-only" onClick={() => sanarSalvamarRegistro(a.salvamarReg)}>Resolvido</button>
-                          )}
-                          {!a.problemaId && !a.salvamarRegId && !visaoExterna && (
-                            <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => dismissAlert(a.id, a.titulo)}><Trash2 size={14} /></button>
-                          )}
-                          <Pill sev={a.sev} />
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-
-                <h3 className="alertas-section-title">Manutenção de Equipamentos</h3>
-                <div className="chaves-filtros">
-                  <input
-                    className="chaves-filtro-input"
-                    value={alertasFiltroEquip}
-                    onChange={(e) => setAlertasFiltroEquip(e.target.value)}
-                    placeholder="Buscar por nome do equipamento..."
-                  />
-                </div>
-                <div className="panel">
-                  {(() => {
-                    const busca = alertasFiltroEquip.trim().toLowerCase();
-                    const filtrados = busca ? alertsEquipamentos.filter((a) => (a.equipNome || "").toLowerCase().includes(busca)) : alertsEquipamentos;
-                    if (filtrados.length === 0) {
-                      return <div className="empty">{busca ? "Nenhuma pendência encontrada para essa busca." : "Nenhuma pendência de equipamentos no momento."}</div>;
-                    }
-                    return filtrados.map((a) => (
-                      <div className="alert-row" key={a.id} style={{ borderLeftColor: a.sev.fg }}>
-                        <div className="alert-main">
-                          {a.foto && <img className="alert-thumb" src={a.foto} alt="" onClick={() => setViewingPhoto(a.foto)} />}
-                          <div><div className="alert-title">{a.titulo}</div><div className="alert-sub">{a.sub}</div>{a.desc && <div className="alert-desc">{a.desc}</div>}</div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {!visaoExterna && (
-                            <button className="icon-btn icon-danger internal-only" title="Excluir alerta" onClick={() => dismissAlert(a.id, a.titulo)}><Trash2 size={14} /></button>
-                          )}
-                          <Pill sev={a.sev} />
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              </>
-            )}
-
           </main>
         </div>
       </div>
@@ -4681,6 +4901,40 @@ const CSS = `
 .equipe-chip button{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:inherit;display:flex;opacity:.7;}
 .equipe-chip button:hover{opacity:1;color:#E01E3C;}
 .equipe-nome{text-transform:uppercase;font-size:15.5px;font-weight:800;letter-spacing:.02em;color:#B80F2A;line-height:1.2;}
+.serv-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
+.serv-card{text-align:left;cursor:pointer;padding:0;font:inherit;color:inherit;transition:transform .18s ease,box-shadow .18s ease;}
+.serv-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md,0 10px 24px -12px rgba(15,22,50,.35));}
+.serv-card-media{height:140px;}
+.serv-flag{position:absolute;top:8px;right:8px;}
+.serv-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.serv-chip{display:inline-flex;background:#EEF1F8;color:#4A5578;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:700;}
+.serv-chip-ok{background:#DDF4E7;color:#1E7A4A;}
+.serv-chip-venc{background:#FFE2E6;color:#E01E3C;}
+.serv-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;}
+.serv-head-foto{width:84px;height:84px;border-radius:12px;background:#EEF1F8;display:flex;align-items:center;justify-content:center;color:#9AA6BF;flex-shrink:0;}
+.serv-head-info{flex:1;min-width:180px;}
+.serv-head-nome{margin:0;font-size:20px;}
+.serv-head-acoes{display:flex;gap:8px;flex-wrap:wrap;}
+.serv-lista{display:flex;flex-direction:column;gap:8px;}
+.serv-item{background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:12px;overflow:hidden;}
+.serv-item-top{width:100%;display:flex;align-items:center;gap:10px;background:none;border:0;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:inherit;}
+.serv-item-main{flex:1;min-width:0;}
+.serv-item-titulo{font-weight:700;font-size:14px;}
+.serv-item-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+.serv-pill{flex-shrink:0;}
+.serv-seta{transition:transform .15s;color:var(--muted);}
+.serv-item.aberto .serv-seta{transform:rotate(180deg);}
+.serv-item-corpo{padding:2px 14px 14px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:10px;padding-top:12px;}
+.serv-desc{font-size:13px;white-space:pre-wrap;}
+.serv-detalhes{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted);}
+.serv-detalhes b{color:var(--ink);}
+.serv-fotos{display:flex;flex-wrap:wrap;gap:8px;}
+.serv-fotos img{height:96px;border-radius:8px;border:1px solid var(--border);cursor:zoom-in;object-fit:cover;}
+.serv-foto-item{position:relative;}
+.serv-foto-item img{cursor:default;}
+.serv-foto-item button{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:0;background:rgba(15,22,50,.75);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.serv-item-acoes{display:flex;gap:8px;}
+@media (max-width:700px){.serv-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}.serv-card-media{height:100px;}.serv-head-acoes{width:100%;}.serv-pill{max-width:46%;white-space:normal;text-align:center;}}
 .equipe-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
 .equipe-busca{border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;min-width:240px;max-width:100%;background:#fff;}
 .equipe-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));}
