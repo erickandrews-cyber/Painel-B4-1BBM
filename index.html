@@ -215,6 +215,12 @@ const History = mkIcon([
   { tag: "path", attrs: { d: "M3 4v5h5" } },
   { tag: "path", attrs: { d: "M12 7v5l4 2" } },
 ]);
+const Users = mkIcon([
+  { tag: "circle", attrs: { cx: 9, cy: 8, r: 3.6 } },
+  { tag: "path", attrs: { d: "M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" } },
+  { tag: "path", attrs: { d: "M16 4.6a3.4 3.4 0 0 1 0 6.6" } },
+  { tag: "path", attrs: { d: "M18 14.4c2 .7 3.5 2.5 3.5 5.6" } },
+]);
 
 const { useState, useEffect } = React;
 
@@ -583,7 +589,7 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
         </div>
 
         <nav className="nav">
-          {item("geral", "Visão Geral", LayoutGrid)}
+          {item("equipe", "Equipe", Users)}
           {item("viaturas", "Viaturas", Truck)}
           {item("embarcacoes", "Embarcações", Anchor)}
           {item("salvamar", "SALVAMAR", LifeBuoy)}
@@ -610,6 +616,175 @@ function Sidebar({ tab, setTab, org, onLogoChange, visaoExterna, open, onClose, 
           Corpo de Bombeiros Militar<br />Painel de Logística — protótipo visual
         </div>
       </aside>
+    </>
+  );
+}
+
+/* ---------------- Equipe ---------------- */
+const POSTOS_BM = ["Cel", "Ten Cel", "Maj", "Cap", "1º Ten", "2º Ten", "Asp", "ST", "1º Sgt", "2º Sgt", "3º Sgt", "Cb", "Sd"];
+const FUNCOES_SUGESTAO = ["Chefe da Seção B/4", "Subchefe da Seção B/4", "Almoxarife", "Auxiliar do Almoxarifado", "SEMAN — Mecânico", "SEMAN — Chefe", "Motorista", "Auxiliar administrativo", "SALVAMAR — Piloto", "SALVAMAR — Auxiliar"];
+function funcoesDe(m) { return Array.isArray(m.funcoes) ? m.funcoes.filter(Boolean) : (m.funcao ? [m.funcao] : []); }
+function soDigitos(t) { return String(t || "").replace(/\D/g, ""); }
+function numeroInternacional(contato) {
+  let d = soDigitos(contato).replace(/^0+/, "");
+  if (d.length < 8) return null;
+  if (!(d.startsWith("55") && d.length >= 12)) d = "55" + d;
+  return d;
+}
+function linkWhats(contato) {
+  const n = numeroInternacional(contato);
+  return n ? "https://wa.me/" + n : null;
+}
+
+function EquipeModal({ initial, onClose, onSave }) {
+  const [form, setForm] = useState(initial ? { ...initial, funcoes: funcoesDe(initial) } : { nome: "", posto: "", matricula: "", contato: "", funcoes: [], foto: null, fotoPosX: 50, fotoPosY: 25 });
+  const [novaFuncao, setNovaFuncao] = useState("");
+  const addFuncao = () => {
+    const f = novaFuncao.trim();
+    if (!f) return;
+    if (!form.funcoes.some((x) => x.toLowerCase() === f.toLowerCase())) setForm({ ...form, funcoes: [...form.funcoes, f] });
+    setNovaFuncao("");
+  };
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const setPhoto = async (file) => {
+    try { const foto = await fileToCompressedDataUrl(file, 480, 0.78); setForm((f) => ({ ...f, foto, fotoPosX: 50, fotoPosY: 25 })); }
+    catch (e) { alert("Não foi possível processar essa imagem."); }
+  };
+  const posX = form.fotoPosX ?? 50, posY = form.fotoPosY ?? 25;
+  return (
+    <div className="modal-back" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><h3>{initial ? "Editar militar" : "Novo militar"}</h3><button className="icon-btn" onClick={onClose}><X size={16} /></button></div>
+        <div className="modal-body">
+          <label>Foto
+            <div className="modal-photo equipe-modal-photo" style={form.foto ? { background: `${posX}% ${posY}% / cover no-repeat url(${form.foto})` } : {}}>
+              {!form.foto && <span className="muted-sm">Sem foto</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <label className="btn-secondary sm" style={{ cursor: "pointer" }}>
+                {form.foto ? "Trocar foto" : "Adicionar foto"}
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => e.target.files[0] && setPhoto(e.target.files[0])} />
+              </label>
+              {form.foto && <button type="button" className="btn-secondary sm" onClick={() => setForm({ ...form, foto: null })}>Remover</button>}
+            </div>
+          </label>
+          {form.foto && (
+            <>
+              <label>Enquadramento horizontal<input type="range" min="0" max="100" value={posX} onChange={(e) => setForm({ ...form, fotoPosX: Number(e.target.value) })} /></label>
+              <label>Enquadramento vertical<input type="range" min="0" max="100" value={posY} onChange={(e) => setForm({ ...form, fotoPosY: Number(e.target.value) })} /></label>
+            </>
+          )}
+          <label>Posto / Graduação
+            <select value={form.posto || ""} onChange={set("posto")}>
+              <option value="">—</option>
+              {POSTOS_BM.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </label>
+          <label>Nome (de guerra ou completo)<input value={form.nome} onChange={set("nome")} placeholder="Ex: Marques" /></label>
+          <label>Matrícula<input value={form.matricula || ""} onChange={set("matricula")} placeholder="Ex: 527.440-1" /></label>
+          <label>Contato (telefone / WhatsApp)<input value={form.contato || ""} onChange={set("contato")} placeholder="Ex: (83) 99999-9999" inputMode="tel" /></label>
+          <div className="equipe-funcoes-edit">
+            <span className="equipe-funcoes-label">Funções</span>
+            {form.funcoes.length > 0 && (
+              <div className="equipe-chips">
+                {form.funcoes.map((f) => (
+                  <span key={f} className="equipe-chip">{f}<button type="button" title="Remover função" onClick={() => setForm({ ...form, funcoes: form.funcoes.filter((x) => x !== f) })}><X size={11} /></button></span>
+                ))}
+              </div>
+            )}
+            <div className="equipe-funcao-add">
+              <input value={novaFuncao} onChange={(e) => setNovaFuncao(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFuncao(); } }} placeholder="Ex: Almoxarife" list="equipe-funcoes" />
+              <button type="button" className="btn-secondary sm" onClick={addFuncao} disabled={!novaFuncao.trim()}><Plus size={13} /> Adicionar</button>
+            </div>
+            <datalist id="equipe-funcoes">{FUNCOES_SUGESTAO.filter((f) => !form.funcoes.includes(f)).map((f) => <option key={f} value={f} />)}</datalist>
+            <span className="muted-sm">Um militar pode ter várias funções: adicione uma por vez.</span>
+          </div>
+        </div>
+        <div className="modal-foot"><button className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary" onClick={() => { const { funcao, ...resto } = form; const pend = novaFuncao.trim(); const funcoes = pend && !form.funcoes.some((x) => x.toLowerCase() === pend.toLowerCase()) ? [...form.funcoes, pend] : form.funcoes; onSave({ ...resto, funcoes, nome: form.nome.trim(), id: form.id || uid() }); }} disabled={!form.nome.trim()}>Salvar</button></div>
+      </div>
+    </div>
+  );
+}
+
+function EquipeCard({ m, externa, onEdit, onDelete, onPhoto }) {
+  const wa = linkWhats(m.contato);
+  const telNum = numeroInternacional(m.contato);
+  return (
+    <div className="vcard equipe-card">
+      <div className="vcard-media equipe-media" style={m.foto ? { background: `${m.fotoPosX ?? 50}% ${m.fotoPosY ?? 25}% / cover no-repeat url(${m.foto})` } : {}}>
+        {!m.foto && <div className="equipe-avatar-vazio"><User size={54} /><span className="vcard-nofoto"><ImageOff size={11} /> sem foto cadastrada</span></div>}
+        {!externa && (
+          <label className="vcard-photo-btn internal-only" title={m.foto ? "Trocar foto" : "Adicionar foto"}>
+            <Camera size={13} />
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => e.target.files[0] && onPhoto(m, e.target.files[0])} />
+          </label>
+        )}
+      </div>
+      <div className="vcard-body">
+        <div className="vcard-title-row">
+          <div>
+            <div className="vcard-name equipe-nome">{m.posto ? `${m.posto} ` : ""}{m.nome}</div>
+            {funcoesDe(m).length === 0 ? <div className="vcard-type">Função não informada</div> : <div className="equipe-chips equipe-chips-card">{funcoesDe(m).map((f) => <span key={f} className="equipe-chip">{f}</span>)}</div>}
+          </div>
+        </div>
+        <div className="vcard-info">
+          <div className="vcard-info-row vcard-info-wide"><span className="vcard-info-k">Matrícula</span><span className="vcard-info-v">{m.matricula || "—"}</span></div>
+          <div className="vcard-info-row vcard-info-wide"><span className="vcard-info-k">Contato</span><span className="vcard-info-v">{m.contato || "—"}</span></div>
+        </div>
+        <div className="vcard-actions">
+          <div className="equipe-contact-btns">
+            {telNum && <a className="btn-ghost equipe-btn-tel" href={`tel:+${telNum}`}><Phone size={13} /> Ligar</a>}
+            {wa && <a className="btn-ghost equipe-btn-wa" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+          </div>
+          {!externa && (
+            <div className="vcard-icons internal-only">
+              <button className="icon-btn" title="Editar" onClick={() => onEdit(m)}><Pencil size={14} /></button>
+              <button className="icon-btn icon-danger" title="Excluir" onClick={() => onDelete(m)}><Trash2 size={14} /></button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EquipePanel({ equipe, onSave, externa, askConfirm }) {
+  const [editando, setEditando] = useState(null); // null | "novo" | objeto
+  const [busca, setBusca] = useState("");
+  const q = busca.trim().toLowerCase();
+  const lista = [...equipe]
+    .filter((m) => !q || [m.nome, m.posto, m.matricula, m.contato, ...funcoesDe(m)].some((x) => String(x || "").toLowerCase().includes(q)))
+    .sort((a, b) => POSTOS_BM.indexOf(a.posto || "") - POSTOS_BM.indexOf(b.posto || "") || String(a.nome).localeCompare(String(b.nome), "pt-BR"));
+  const salvar = (m) => {
+    const existe = equipe.some((x) => x.id === m.id);
+    onSave(existe ? equipe.map((x) => (x.id === m.id ? m : x)) : [...equipe, m]);
+    setEditando(null);
+  };
+  const excluir = (m) => askConfirm(`Excluir ${m.posto ? m.posto + " " : ""}${m.nome} da equipe?`, () => onSave(equipe.filter((x) => x.id !== m.id)));
+  const trocarFoto = async (m, file) => {
+    try { const foto = await fileToCompressedDataUrl(file, 480, 0.78); onSave(equipe.map((x) => (x.id === m.id ? { ...x, foto, fotoPosX: 50, fotoPosY: 25 } : x))); }
+    catch (e) { alert("Não foi possível processar essa imagem."); }
+  };
+  return (
+    <>
+      <div className="section-head">
+        <h2>Equipe</h2>
+        {!externa && <button className="btn-primary sm internal-only" onClick={() => setEditando("novo")}><Plus size={14} /> Novo militar</button>}
+      </div>
+      <div className="equipe-toolbar">
+        <div className="muted-sm">{equipe.length} {equipe.length === 1 ? "militar cadastrado" : "militares cadastrados"}</div>
+        {equipe.length > 0 && <input className="equipe-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, matrícula ou função…" />}
+      </div>
+      {equipe.length === 0 ? (
+        <div className="panel"><div className="empty">Nenhum militar cadastrado ainda.{!externa && " Clique em “Novo militar” para começar."}</div></div>
+      ) : lista.length === 0 ? (
+        <div className="panel"><div className="empty">Nenhum resultado para a busca.</div></div>
+      ) : (
+        <div className="grid-vehicles equipe-grid">
+          {lista.map((m) => <EquipeCard key={m.id} m={m} externa={externa} onEdit={setEditando} onDelete={excluir} onPhoto={trocarFoto} />)}
+        </div>
+      )}
+      {editando && <EquipeModal initial={editando === "novo" ? null : editando} onClose={() => setEditando(null)} onSave={salvar} />}
     </>
   );
 }
@@ -2744,6 +2919,7 @@ function App() {
   const [orcamentos, saveOrcamentos, readyOrcamentos] = useShared("b4-orcamentos", SEED_ORCAMENTOS);
   const [alertasDispensados, saveAlertasDispensados, readyAlertasDispensados] = useShared("b4-alertas-dispensados", []);
   const [org, saveOrg, readyOrg] = useShared("b4-org", DEFAULT_ORG);
+  const [equipe, saveEquipe, readyEquipe] = useShared("b4-equipe", []);
   const brasaoMarca = useBrasaoSemFundo(org.brasao);
   const [checklistTemplates, saveChecklistTemplates, readyChecklistTemplates] = useShared("b4-checklist-templates", SEED_CHECKLIST_TEMPLATES);
   const [checklistItens, saveChecklistItens, readyChecklistItens] = useShared("b4-checklist-itens", SEED_CHECKLIST_ITENS);
@@ -2751,10 +2927,10 @@ function App() {
   const [salvamarLembretes, saveSalvamarLembretes, readySalvamarLembretes] = useShared("b4-salvamar-lembretes", {});
   const [salvamarLembretesFeitos, saveSalvamarLembretesFeitos, readySalvamarLembretesFeitos] = useShared("b4-salvamar-lembretes-feitos", {});
 
-  const VALID_TABS = ["geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas", "salvamar"];
+  const VALID_TABS = ["equipe", "geral", "viaturas", "embarcacoes", "chaves", "manutencao", "cautelas", "demandas", "orcamentos", "escalas", "checklist", "alertas", "salvamar"];
   const initialTab = (() => {
     const h = (typeof window !== "undefined" ? window.location.hash : "").replace("#", "");
-    return VALID_TABS.includes(h) ? h : "geral";
+    return VALID_TABS.includes(h) && h !== "geral" ? h : "equipe";
   })();
   const [tab, setTabRaw] = useState(initialTab);
   const setTab = (t) => {
@@ -3275,6 +3451,7 @@ function App() {
 
   const subtitleMap = {
     geral: "Controle de Viaturas e Embarcações",
+    equipe: "Equipe da Seção de Logística",
     viaturas: "Controle de Viaturas e Embarcações",
     embarcacoes: "Controle de Viaturas e Embarcações",
     chaves: "Controle de Viaturas e Embarcações",
@@ -3297,6 +3474,10 @@ function App() {
         <div className="main-col">
           <Header subtitle={subtitleMap[tab]} org={org} onEditOrg={() => setEditingOrgOpen(true)} onMenuClick={() => setSidebarOpen(true)} visaoExterna={visaoExterna} onUnlockClick={() => setUnlockModalOpen(true)} onLock={lockEdit} />
           <main className="content" style={brasaoMarca ? { "--brasao-url": `url(${brasaoMarca})` } : undefined}>
+
+            {tab === "equipe" && (
+              readyEquipe ? <EquipePanel equipe={equipe} onSave={saveEquipe} externa={visaoExterna} askConfirm={askConfirm} /> : <div className="empty">Carregando…</div>
+            )}
 
             {tab === "geral" && (
               <>
@@ -4490,6 +4671,28 @@ const CSS = `
 /* ---------------- Responsivo (mobile) ---------------- */
 .mobile-menu-btn{display:none;background:none;border:none;color:var(--ink);cursor:pointer;padding:4px;flex-shrink:0;}
 .header-left{display:flex;align-items:center;gap:10px;min-width:0;}
+.equipe-funcoes-edit{display:flex;flex-direction:column;gap:6px;}
+.equipe-funcoes-label{font-size:12px;font-weight:600;}
+.equipe-funcao-add{display:flex;gap:8px;align-items:center;}
+.equipe-funcao-add input{flex:1;min-width:0;}
+.equipe-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.equipe-chips-card{margin-top:6px;}
+.equipe-chip{display:inline-flex;align-items:center;gap:4px;background:#E8EEFC;color:#1E3FA8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;}
+.equipe-chip button{background:none;border:0;padding:0;margin-left:2px;cursor:pointer;color:inherit;display:flex;opacity:.7;}
+.equipe-chip button:hover{opacity:1;color:#E01E3C;}
+.equipe-nome{text-transform:uppercase;font-size:15.5px;font-weight:800;letter-spacing:.02em;color:#B80F2A;line-height:1.2;}
+.equipe-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+.equipe-busca{border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;min-width:240px;max-width:100%;background:#fff;}
+.equipe-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr));}
+.equipe-media{height:240px;}
+.equipe-avatar-vazio{display:flex;flex-direction:column;align-items:center;gap:6px;color:#9AA6BF;}
+.equipe-funcao-badge{position:absolute;left:10px;bottom:10px;background:rgba(15,22,50,.82);color:#fff;max-width:calc(100% - 56px);overflow:hidden;text-overflow:ellipsis;backdrop-filter:blur(4px);}
+.equipe-contact-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.equipe-contact-btns .btn-ghost{text-decoration:none;color:#1D4ED8;}
+.equipe-btn-wa{color:#0E8F4B !important;}
+.equipe-modal-photo{height:200px;}
+@media (max-width:700px){.equipe-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}.equipe-media{height:190px;}.equipe-busca{min-width:0;width:100%;}}
+@media (max-width:380px){.equipe-grid{grid-template-columns:1fr;}}
 .header-brasao{height:58px;width:auto;max-width:64px;object-fit:contain;flex-shrink:0;background:none;border:0;border-radius:0;box-shadow:none;filter:drop-shadow(0 3px 5px rgba(15,23,42,.28));}
 .content{position:relative;}
 .content::before{content:"";position:fixed;right:24px;bottom:16px;width:260px;height:260px;background:var(--brasao-url,none) no-repeat center/contain;opacity:.05;pointer-events:none;z-index:0;}
